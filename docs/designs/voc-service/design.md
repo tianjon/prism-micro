@@ -1057,7 +1057,7 @@ sequenceDiagram
         Core->>Core: start_import_task(batch_id) [后台]
     else 未匹配到模板
         Core->>Mapping: generate_mapping_via_llm(columns, sample_rows)
-        Mapping->>LLM: POST /api/llm/chat (reasoning 槽位)
+        Mapping->>LLM: POST /api/llm/slots/reasoning/invoke
         LLM-->>Mapping: 映射建议 JSON
         Mapping->>DB: 暂存映射草稿
         Core->>DB: 更新 Batch(status=mapping)
@@ -1112,7 +1112,7 @@ sequenceDiagram
 
         Note over Sched,Guard: === Stage 1: 语义拆解 ===
         Sched->>S1: split(voice)
-        S1->>LLM: POST /api/llm/chat (slot=reasoning)
+        S1->>LLM: POST /api/llm/slots/reasoning/invoke
         LLM-->>S1: JSON {units: [...]}
         S1->>Guard: l1_validate(response, STAGE1_SCHEMA)
         alt L1 校验通过
@@ -1120,7 +1120,7 @@ sequenceDiagram
         else L1 校验失败
             Guard-->>S1: ValidationError
             S1->>S1: retry_with_simplified_prompt()
-            S1->>LLM: POST /api/llm/chat (简化 Prompt)
+            S1->>LLM: POST /api/llm/slots/reasoning/invoke (简化 Prompt)
             LLM-->>S1: JSON
             S1->>Guard: l1_validate(response, STAGE1_SCHEMA)
             alt 再次失败
@@ -1129,7 +1129,7 @@ sequenceDiagram
             end
         end
         S1->>Guard: l2_semantic_check(voice.raw_text, units)
-        Guard->>LLM: POST /api/llm/chat (slot=fast)
+        Guard->>LLM: POST /api/llm/slots/fast/invoke
         LLM-->>Guard: {consistent: true/false, issues: [...]}
         alt L2 检查不一致
             Guard-->>S1: SemanticInconsistencyWarning
@@ -1140,11 +1140,11 @@ sequenceDiagram
 
         Note over Sched,Guard: === Stage 2: 标签涌现 + 标准化 ===
         Sched->>S2: tag(units)
-        S2->>LLM: POST /api/llm/chat (slot=reasoning)
+        S2->>LLM: POST /api/llm/slots/reasoning/invoke
         LLM-->>S2: JSON {tags: [{raw_name, ...}, ...]}
         S2->>Guard: l1_validate(response, STAGE2_SCHEMA)
         S2->>S2: normalize_tags(raw_tags)
-        S2->>LLM: POST /api/llm/chat (slot=fast)
+        S2->>LLM: POST /api/llm/slots/fast/invoke
         Note over S2: 标签标准化：去重 + 同义合并
         LLM-->>S2: JSON {normalized: [...]}
         S2->>DB: UPSERT emergent_tags (ON CONFLICT name DO UPDATE usage_count)
@@ -1153,7 +1153,7 @@ sequenceDiagram
 
         Note over Sched,Guard: === Stage 3: 向量化 ===
         Sched->>S3: embed(units)
-        S3->>LLM: POST /api/llm/embedding (slot=embedding)
+        S3->>LLM: POST /api/llm/embeddings
         LLM-->>S3: vectors[]
         S3->>DB: UPDATE semantic_units SET embedding = vector
         S3-->>Sched: done
@@ -1175,7 +1175,7 @@ sequenceDiagram
     User->>API: POST /api/voc/search {query: "支付卡顿", top_k: 20}
     API->>Search: search(query, params)
 
-    Search->>LLM: POST /api/llm/embedding (slot=embedding)
+    Search->>LLM: POST /api/llm/embeddings
     Note over Search,LLM: 将查询文本向量化
     LLM-->>Search: query_vector (4096维)
 
@@ -1184,7 +1184,7 @@ sequenceDiagram
     DB-->>Search: candidate_units[]
 
     alt rerank = true
-        Search->>LLM: POST /api/llm/rerank (slot=rerank)
+        Search->>LLM: POST /api/llm/rerank
         Note over Search,LLM: 用 rerank 模型精排
         LLM-->>Search: reranked_scores[]
         Search->>Search: 按 rerank_score 排序，取 top_k
@@ -1220,7 +1220,7 @@ sequenceDiagram
         Mapping-->>Core: {mapping, match_type: "exact"}
     else 无匹配
         Mapping->>Mapping: 构造映射 Prompt（含列名 + 采样数据）
-        Mapping->>LLM: POST /api/llm/chat (slot=reasoning)
+        Mapping->>LLM: POST /api/llm/slots/reasoning/invoke
         LLM-->>Mapping: 映射建议 JSON
 
         alt overall_confidence >= 0.8
@@ -1569,42 +1569,36 @@ class LLMClient:
     async def chat(
         self,
         *,
-        slot: str,
+        slot_type: str,
         messages: list[dict],
-        temperature: float = 0.7,
         max_tokens: int = 4096,
-        response_format: dict | None = None,
     ) -> dict[str, Any]:
         """
-        调用 llm-service Chat API。
+        通过 slot invoke 端点调用 llm-service Chat。
 
         Args:
-            slot: 模型槽位（"reasoning" | "fast"）
+            slot_type: 槽位类型（"reasoning" | "fast"）
             messages: OpenAI 格式消息列表
-            temperature: 生成温度
             max_tokens: 最大 token 数
-            response_format: JSON mode 配置
 
         Raises:
             LLMUnavailableError: llm-service 不可用
             LLMResponseError: LLM 返回非预期格式
         """
         payload: dict[str, Any] = {
-            "slot": slot,
             "messages": messages,
-            "temperature": temperature,
             "max_tokens": max_tokens,
-            "stream": False,
         }
-        if response_format:
-            payload["response_format"] = response_format
 
         last_error: Exception | None = None
         for attempt in range(self._retry_count):
             try:
-                resp = await self._client.post("/api/llm/chat", json=payload)
+                resp = await self._client.post(
+                    f"/api/llm/slots/{slot_type}/invoke", json=payload,
+                )
                 resp.raise_for_status()
-                return resp.json()["data"]
+                # slot invoke 返回 {"data": {"result": {...}, "routing": {...}}}
+                return resp.json()["data"]["result"]
             except httpx.HTTPStatusError as e:
                 last_error = e
                 if e.response.status_code < 500:
@@ -1617,16 +1611,34 @@ class LLMClient:
         ) from last_error
 
     async def embedding(self, *, texts: list[str]) -> list[list[float]]:
-        """调用 llm-service Embedding API，返回 4096 维向量列表"""
-        resp = await self._client.post("/api/llm/embedding", json={"input": texts})
+        """
+        调用 llm-service Embedding API，返回 4096 维向量列表。
+
+        # 当前 slot invoke 不支持 embedding，使用直接端点 + slot 配置查询
+        # 需通过 /api/llm/slots/embedding 查询获取 provider_id 和 model_id
+        """
+        resp = await self._client.post(
+            "/api/llm/embeddings",
+            json={"input": texts, "provider_id": self._embedding_provider_id, "model_id": self._embedding_model_id},
+        )
         resp.raise_for_status()
-        return [item["embedding"] for item in resp.json()["data"]["data"]]
+        return [item["values"] for item in resp.json()["data"]["embeddings"]]
 
     async def rerank(
         self, *, query: str, documents: list[str], top_n: int | None = None,
     ) -> list[dict]:
-        """调用 llm-service Rerank API"""
-        payload: dict[str, Any] = {"query": query, "documents": documents}
+        """
+        调用 llm-service Rerank API。
+
+        # 当前 slot invoke 不支持 rerank，使用直接端点 + slot 配置查询
+        # 需通过 /api/llm/slots/rerank 查询获取 provider_id 和 model_id
+        """
+        payload: dict[str, Any] = {
+            "query": query,
+            "documents": documents,
+            "provider_id": self._rerank_provider_id,
+            "model_id": self._rerank_model_id,
+        }
         if top_n:
             payload["top_n"] = top_n
         resp = await self._client.post("/api/llm/rerank", json=payload)
