@@ -78,6 +78,8 @@ Python 版本锁定为 3.12（见 `.python-version`）。
 - **后端**: FastAPI + SQLAlchemy 2.0 (async) + Alembic + Pydantic v2
 - **LLM 调用**: LiteLLM（通过 SlotRouter 封装，业务代码不直接调用 LiteLLM API）
 - **前端**: React + Vite + shadcn/ui + Tailwind CSS + Zustand
+- **前端设计系统**: Liquid Glass（Dark Mode Only），定义在 `apps/web/src/styles/globals.css`
+- **前端图标**: Lucide React + `ICON_SIZE` 常量体系（`apps/web/src/lib/icon-sizes.ts`）
 - **CLI**: Typer
 - **HTTP 客户端**: httpx
 - **向量检索**: pgvector（4096 维，Qwen-Embedding-8B）
@@ -177,7 +179,8 @@ prism-micro/
 │   │       ├── import/
 │   │       ├── search/
 │   │       ├── tags/
-│   │       └── admin/
+│   │       ├── admin/
+│   │       └── studio/
 │   └── cli/                        # CLI 工具
 │       └── src/prism_cli/
 │           └── commands/           # 子命令
@@ -201,6 +204,13 @@ prism-micro/
 │   └── roadmap.md                  # 技术路线图
 └── openspec/                       # OpenSpec 规格
 ```
+
+### 前端架构要点
+
+- **布局体系**：`Layout.tsx` 提供主侧边栏（支持收缩），页面通过 `<PageContainer>` 自行决定限宽
+- **设计系统**：Liquid Glass（`glass-*` CSS 工具类），完整规范见 `.claude/rules/frontend-ui.md`
+- **功能域**：`features/admin/`（Provider/Slot 管理）、`features/studio/`（Playground/槽位测试）、`features/auth/`（登录）
+- **Studio 架构**：Playground 采用 OpenAI 风格左右分栏（`PlaygroundHeader` + `PlaygroundSidebar` + 内容区切换 Chat/Embedding/Rerank）
 
 ## 设计文档
 

@@ -25,6 +25,8 @@
 | 对比视图（F15） | 涌现标签 vs 预设分类 + 偏好投票 |
 | 反馈按钮（F14） | 有用/无用/错误三元反馈 |
 | 置信度展示（F6） | 三档颜色编码（高=绿、中=黄、低=红）+ "AI 生成"标注 |
+| LLM Studio: Playground（F27） | 三模式交互测试（Chat 流式对话 / Embedding 向量化+相似度 / Rerank 重排序） |
+| LLM Studio: 槽位测试（F27） | 槽位调用测试 + 路由决策展示 + 故障转移时间线可视化 |
 
 **CLI 核心职责**：
 
@@ -52,6 +54,7 @@
 | F4: 语义搜索 | CLI | `prism search` 命令 | M5 |
 | F21: 槽位管理 | CLI | `prism slot` 命令组 | M5 |
 | F22/F23: 爬虫 | CLI | `prism crawl` 命令 | M8 |
+| F27: LLM Studio | 前端 | `/studio/playground` + `/studio/slots` 页面 | M5 |
 
 ### 1.3 里程碑
 
@@ -177,21 +180,34 @@ apps/web/
 │   │   │       ├── tags-api.ts
 │   │   │       └── feedback-api.ts
 │   │   │
-│   │   └── admin/                    # 管理功能域
-│   │       ├── pages/
-│   │       │   └── SlotsPage.tsx             # 槽位配置页（F21）
+│   │   ├── admin/                    # 管理功能域
+│   │   │   ├── pages/
+│   │   │   │   └── SlotsPage.tsx             # 槽位配置页（F21）
+│   │   │   ├── components/
+│   │   │   │   ├── SlotCard.tsx              # 槽位卡片
+│   │   │   │   ├── SlotConfigPanel.tsx       # 配置面板
+│   │   │   │   ├── FallbackChainEditor.tsx   # 降级链编辑器
+│   │   │   │   ├── ProviderSelect.tsx        # Provider 下拉选择
+│   │   │   │   └── ConnectivityTestButton.tsx # 连通性测试按钮
+│   │   │   ├── hooks/
+│   │   │   │   ├── use-slots.ts
+│   │   │   │   └── use-providers.ts
+│   │   │   └── api/
+│   │   │       ├── slots-api.ts
+│   │   │       └── providers-api.ts
+│   │   │
+│   │   └── studio/                   # LLM Studio
+│   │       ├── api/
+│   │       │   └── studio-api.ts    # callCompletion(Stream)/callEmbedding/callRerank/invokeSlot
 │   │       ├── components/
-│   │       │   ├── SlotCard.tsx              # 槽位卡片
-│   │       │   ├── SlotConfigPanel.tsx       # 配置面板
-│   │       │   ├── FallbackChainEditor.tsx   # 降级链编辑器
-│   │       │   ├── ProviderSelect.tsx        # Provider 下拉选择
-│   │       │   └── ConnectivityTestButton.tsx # 连通性测试按钮
-│   │       ├── hooks/
-│   │       │   ├── use-slots.ts
-│   │       │   └── use-providers.ts
-│   │       └── api/
-│   │           ├── slots-api.ts
-│   │           └── providers-api.ts
+│   │       │   ├── ChatPanel.tsx     # Gemini 风格双态 Chat（空态居中/活跃态底部固定）
+│   │       │   ├── EmbeddingPanel.tsx # 多文本输入 + 向量预览 + 余弦相似度矩阵
+│   │       │   ├── RerankPanel.tsx   # query+文档输入 + 排序结果
+│   │       │   ├── SlotTestPanel.tsx # 槽位调用 + routing 展示
+│   │       │   └── FailoverTrace.tsx # 故障转移时间线可视化
+│   │       └── pages/
+│   │           ├── PlaygroundPage.tsx # 三模式切换（Chat/Embedding/Rerank）
+│   │           └── SlotTestPage.tsx  # 4 槽位卡片 + 测试面板
 │   │
 │   └── styles/
 │       └── globals.css               # Tailwind 入口 + 自定义变量
@@ -253,6 +269,7 @@ apps/cli/
 | `features/*/hooks/` | 数据获取 + 状态管理 | `api/`、SWR |
 | `features/*/api/` | 领域 API 封装 | `api/client.ts` |
 | `components/` | 全局通用 UI 组件 | shadcn/ui |
+| `features/studio/` | LLM Studio：Playground 三模式测试 + 槽位调用测试 + 故障转移可视化 | `api/`、`features/admin/`（复用 ProviderCombobox/ModelCombobox） |
 
 ### 2.4 依赖关系
 
@@ -855,7 +872,18 @@ source_name: "懂车帝口碑评论"  (可选)
 - `PUT /api/llm/admin/slots/{slot_type}` — 更新槽位配置
 - `POST /api/llm/admin/slots/{slot_type}/test` — 测试槽位连通性
 
-### 4.7 前端错误码处理
+### 4.7 Studio API
+
+前端调用以下推理代理端点（详见 LLM Service 设计文档 4.3 节）：
+
+- `POST /api/llm/completions` — Chat 补全（支持 stream=true 流式）
+- `POST /api/llm/embeddings` — 向量化
+- `POST /api/llm/rerank` — 重排序
+- `POST /api/llm/slots/{slot_type}/invoke` — 槽位调用（含 failover_trace）
+
+流式 Chat 使用原生 `fetch()` + `ReadableStream` 解析 SSE，不依赖 EventSource。
+
+### 4.8 前端错误码处理
 
 | 后端错误码 | 前端处理 |
 |-----------|---------|
@@ -1193,6 +1221,60 @@ TagComparePage
     └── WinRate ("涌现标签胜率: 67%")
 ```
 
+#### Playground 页面
+
+```
+PlaygroundPage
+├── [Chat 模式] ChatPanel (接管全页布局)
+│   ├── [空态] CenteredWelcome
+│   │   ├── BrandLogo ("P")
+│   │   ├── Title ("Playground")
+│   │   ├── InputCard (自包含)
+│   │   │   ├── Textarea
+│   │   │   └── BottomToolbar
+│   │   │       ├── ProviderCombobox (compact)
+│   │   │       ├── ModelCombobox (compact)
+│   │   │       └── SendButton
+│   │   ├── ModeChips (Chat/Embedding/Rerank 圆角 pill)
+│   │   └── CostHint
+│   └── [活跃态] ActiveChat
+│       ├── TopBar (mode tabs + clear button)
+│       ├── MessageStream (max-w-3xl centered)
+│       │   ├── UserMessage (右对齐, indigo 背景)
+│       │   ├── AssistantMessage (左对齐, 无背景)
+│       │   └── StatsLine (model / latency / tokens)
+│       └── BottomInputCard (同空态 InputCard + CostHint)
+├── [Embedding 模式] StandardLayout
+│   ├── PageHeader
+│   ├── CostWarning
+│   ├── ControlBar (mode tabs + Provider + Model)
+│   └── EmbeddingPanel
+└── [Rerank 模式] StandardLayout (同上)
+    └── RerankPanel
+```
+
+#### 槽位测试页面
+
+```
+SlotTestPage
+├── PageHeader
+├── CostWarning
+├── SlotCardGrid (4 列)
+│   └── SlotCardMini * 4
+│       ├── SlotIcon + StatusDot
+│       ├── TypeLabel + Provider/Model
+│       └── ResourcePoolCount
+└── TestPanel
+    ├── [已配置] SlotTestPanel
+    │   ├── MessageInput + TestButton
+    │   ├── ResultDisplay
+    │   │   ├── ContentBlock (模型回复)
+    │   │   ├── RoutingInfo (Provider/Model/SlotType/资源池)
+    │   │   └── StatsLine (延迟/Token)
+    │   └── FailoverTrace (故障转移时间线)
+    └── [未配置] EmptyState ("该槽位未配置")
+```
+
 ### 6.2 API Client 封装
 
 ```typescript
@@ -1517,6 +1599,8 @@ import { SearchPage } from "@/features/search/pages/SearchPage";
 import { TagListPage } from "@/features/tags/pages/TagListPage";
 import { TagComparePage } from "@/features/tags/pages/TagComparePage";
 import { SlotsPage } from "@/features/admin/pages/SlotsPage";
+import { PlaygroundPage } from "@/features/studio/pages/PlaygroundPage";
+import { SlotTestPage } from "@/features/studio/pages/SlotTestPage";
 
 export function App() {
   return (
@@ -1532,12 +1616,26 @@ export function App() {
             <Route path="/tags" element={<TagListPage />} />
             <Route path="/tags/compare" element={<TagComparePage />} />
             <Route path="/admin/slots" element={<SlotsPage />} />
+            <Route path="/studio/playground" element={<PlaygroundPage />} />
+            <Route path="/studio/slots" element={<SlotTestPage />} />
           </Route>
         </Route>
       </Routes>
     </BrowserRouter>
   );
 }
+```
+
+**侧边栏导航分组**：
+
+```
+[管理]
+  模型槽位 → /admin/slots
+  Provider 管理 → /admin/providers
+
+[Studio]
+  Playground → /studio/playground
+  槽位测试 → /studio/slots
 ```
 
 ### 6.8 CLI 核心实现
@@ -1990,3 +2088,161 @@ gantt
 - [ ] **T17**：`prism crawl weibo --keyword "Peets Coffee"` 成功抓取 >= 30 条微博
 - [ ] **T18**：重复执行不重复入库；爬虫请求频率 <= 1 次/秒；指数退避在反爬触发时生效
 - [ ] **全局**：爬虫数据在 Web UI 中与手动上传数据无差异展示
+
+---
+
+## 10. UI 设计规范
+
+### 10.1 设计系统：Liquid Glass
+
+Prism 采用 Liquid Glass 设计系统（Apple Liquid Glass 风格，Dark Mode Only）。
+所有设计 Token 定义在 `apps/web/src/styles/globals.css` 的 `@theme` 块中。
+
+#### 色彩体系
+
+| 类别 | Token | 值 | 用途 |
+|------|-------|----|------|
+| 玻璃底色 | `--color-glass-bg` | `rgba(255,255,255,0.05)` | 默认背景 |
+| 玻璃底色(hover) | `--color-glass-bg-hover` | `rgba(255,255,255,0.08)` | Hover 状态 |
+| 玻璃底色(active) | `--color-glass-bg-active` | `rgba(255,255,255,0.12)` | Active 状态 |
+| 玻璃边框 | `--color-glass-border` | `rgba(255,255,255,0.1)` | 默认边框 |
+| 玻璃边框(hover) | `--color-glass-border-hover` | `rgba(255,255,255,0.2)` | Hover 边框 |
+| 语义-主色 | `--color-accent-primary` | `#6366f1` | 主要操作、选中态 |
+| 语义-主色(hover) | `--color-accent-primary-hover` | `#818cf8` | 主色 Hover |
+| 语义-成功 | `--color-accent-success` | `#22c55e` | 成功/健康状态 |
+| 语义-警告 | `--color-accent-warning` | `#f59e0b` | 警告 |
+| 语义-错误 | `--color-accent-error` | `#ef4444` | 错误 |
+| 表面层-0 | `--color-surface-0` | `#030712` | 页面底色 |
+| 表面层-1 | `--color-surface-1` | `rgba(17,24,39,0.8)` | 一级表面 |
+| 表面层-2 | `--color-surface-2` | `rgba(31,41,55,0.6)` | 二级表面 |
+| 文本-主 | `--color-text-primary` | `rgba(255,255,255,0.95)` | 标题、强调 |
+| 文本-次 | `--color-text-secondary` | `rgba(255,255,255,0.6)` | 正文 |
+| 文本-辅 | `--color-text-tertiary` | `rgba(255,255,255,0.4)` | 辅助文字 |
+| 文本-禁用 | `--color-text-disabled` | `rgba(255,255,255,0.25)` | 禁用 |
+
+#### 圆角 / 模糊 / 动画
+
+| Token | 值 | 用途 |
+|-------|-----|------|
+| `--radius-sm` | 8px | 小型元素（badge、tag） |
+| `--radius-md` | 12px | 按钮、输入框 |
+| `--radius-lg` | 16px | 面板 |
+| `--radius-xl` | 20px | 卡片 |
+| `--radius-2xl` | 24px | 大型容器 |
+| `--blur-sm` | 8px | 输入框毛玻璃 |
+| `--blur-md` | 16px | 中层毛玻璃 |
+| `--blur-lg` | 24px | 面板/顶栏毛玻璃 |
+| `--blur-xl` | 40px | 卡片/侧栏毛玻璃 |
+| `--duration-fast` | 150ms | 微交互 |
+| `--duration-normal` | 250ms | 标准过渡 |
+| `--duration-slow` | 400ms | 展开/淡入动画 |
+| `--ease-glass` | cubic-bezier(0.4,0,0.2,1) | 标准曲线 |
+| `--ease-bounce` | cubic-bezier(0.34,1.56,0.64,1) | 弹性曲线 |
+
+#### Z-index 层级
+
+| 层级 | CSS 变量 | 用途 |
+|------|---------|------|
+| 30 | `--z-topbar` | 移动端顶栏 |
+| 40 | `--z-sidebar` | 侧边栏 |
+| 50 | `--z-dropdown` | 下拉菜单 |
+| 100 | `--z-toast` | 通知 |
+
+#### Glass 组件类
+
+| 类名 | 用途 | 模糊级别 | 圆角 | 特殊效果 |
+|------|------|---------|------|---------|
+| `glass-panel` | 通用面板 | blur-lg (24px) | radius-lg | hover 变亮 |
+| `glass-card` | 卡片 | blur-xl (40px) | radius-xl | hover 阴影增强 |
+| `glass-input` | 输入框 | blur-sm (8px) | radius-md | focus 主色光晕 |
+| `glass-btn-primary` | 主按钮 | — | radius-md | 渐变背景 + hover 上浮 |
+| `glass-btn-ghost` | 次按钮 | — | radius-md | 透明背景 + hover 变亮 |
+| `glass-segmented` | 分段选择器 | — | radius-md | 内含 `glass-segmented-item` |
+| `glass-sidebar` | 侧边栏 | blur-xl (40px) | — | 右边框 |
+| `glass-topbar` | 顶栏 | blur-lg (24px) | — | 下边框 |
+| `glass-sheet` | 浮层/抽屉 | blur-xl (40px) | — | 左边框 |
+| `glass-toast` | 通知 | blur-lg (24px) | radius-lg | 深阴影 |
+| `glass-skeleton` | 骨架屏 | — | radius-sm | 脉冲动画 |
+
+#### 辅助效果类
+
+| 类名 | 效果 |
+|------|------|
+| `glow-indigo` | 靛蓝发光（主操作强调） |
+| `glow-green` | 绿色发光（成功状态） |
+| `glow-red` | 红色发光（错误状态） |
+| `status-dot` + `status-dot-healthy` | 绿色健康指示灯 |
+| `status-dot` + `status-dot-unhealthy` | 红色异常指示灯 |
+| `status-dot` + `status-dot-unknown` | 灰色未知指示灯 |
+| `slider-glass` | 毛玻璃风格滑块控件 |
+
+#### 动画类
+
+| 类名 | 时长 | 效果 |
+|------|------|------|
+| `.animate-fade-in` | 400ms | 从下方淡入（translateY 8px → 0） |
+| `.animate-expand` | 400ms | 从顶部展开（scaleY 0.95 → 1 + max-height） |
+| `.animate-spin-slow` | 1.2s | 匀速旋转（loading spinner） |
+
+### 10.2 布局体系
+
+#### 主布局（Layout.tsx）
+
+- 主侧边栏 `w-60`（展开）/ `w-16`（收缩），内容区 `margin-left` 联动（`md:ml-60` / `md:ml-16`）
+- 移动端：侧边栏 `-translate-x-full` 隐藏，顶栏 hamburger 菜单触发
+- 桌面端：侧边栏固定显示，底部"收起"按钮触发收缩
+- 过渡动画统一 200ms
+
+#### 页面宽度策略
+
+| 类型 | 实现 | 示例 |
+|------|------|------|
+| 限宽页面 | `<PageContainer>`（max-w-6xl 居中） | SlotsPage, ProvidersPage |
+| 全宽页面 | 直接 `flex h-screen` | PlaygroundPage |
+| 登录页 | 全屏居中（不使用 Layout） | LoginPage |
+
+#### 全宽页面内部分栏（Playground 模式）
+
+顶部固定 Header + 左侧可收缩 Sidebar + 右侧弹性内容区。
+高度用 `h-[calc(100vh-3.5rem)]`（移动端减去顶栏）/ `md:h-screen`。
+Sidebar 展开 `w-70` / 收缩 `w-0`，通过 `collapsed` prop 控制。
+
+### 10.3 图标尺寸常量
+
+`src/lib/icon-sizes.ts` 定义 7 档尺寸，组件中通过 `ICON_SIZE.md` 等引用：
+
+| 名称 | 值 | 典型用途 |
+|------|-----|---------|
+| xs | 10px | 下拉箭头、状态点 |
+| sm | 12px | 列表图标、紧凑按钮 |
+| md | 14px | 默认按钮、表单图标 |
+| lg | 16px | 工具栏、toast |
+| xl | 18px | 侧栏次级导航 |
+| 2xl | 20px | 侧栏主导航 |
+| 3xl | 24px | 空状态、错误状态 |
+
+### 10.4 组件模式
+
+#### 侧边栏收缩模式
+
+Props：`collapsed: boolean` + `onToggleCollapse: () => void`。
+收缩时宽度过渡到目标值，文字通过 `opacity-0 w-0 overflow-hidden` 隐藏，图标居中对齐。
+tooltip `title` 属性在收缩态提供文字提示。
+
+#### 渐进披露卡片模式
+
+卡片头部包含标题 + ChevronDown 图标，点击展开详情区域。
+ChevronDown 展开时旋转 180 度（`rotate-180 transition-transform`）。
+详情区域使用 `.animate-expand` 动画展开。
+
+#### 内联表单模式
+
+两阶段交互：预设选择 → 配置表单。
+选择"自定义"后展示配置表单，使用 `glass-card` + `.animate-fade-in` 入场。
+表单内部使用 `flex flex-col gap-*` 组织字段。
+
+#### Combobox 模式
+
+搜索过滤 + 键盘导航 + 外部点击关闭。
+支持 compact（紧凑下拉）和 full（带搜索框）双模式。
+选项列表使用 `glass-panel` 样式，选中项使用 `bg-accent-primary/20` 高亮。

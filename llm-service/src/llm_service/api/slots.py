@@ -3,7 +3,15 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from llm_service.api.deps import get_db
+from llm_service.api.deps import get_db, get_encryption_key, require_admin
+from llm_service.api.schemas.gateway import (
+    CompletionResponse,
+    FailoverTraceItem,
+    RoutingInfo,
+    SlotInvokeRequest,
+    SlotInvokeResponse,
+    UsageInfo,
+)
 from llm_service.api.schemas.slot import (
     FallbackItemResponse,
     ProviderBrief,
@@ -18,8 +26,11 @@ router = APIRouter(prefix="/api/llm/slots", tags=["slots"])
 
 
 @router.get("", response_model=ApiResponse[list[SlotResponse]])
-async def list_slots(db: AsyncSession = Depends(get_db)):
-    """列出所有 Slot 配置。"""
+async def list_slots(
+    _admin=Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """列出所有 Slot 配置（需要管理员权限）。"""
     slots = await service.list_slots(db)
 
     # 构建已配置的 slot_type 集合
@@ -43,8 +54,12 @@ async def list_slots(db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/{slot_type}", response_model=ApiResponse[SlotResponse])
-async def get_slot(slot_type: SlotType, db: AsyncSession = Depends(get_db)):
-    """获取指定 Slot 配置。"""
+async def get_slot(
+    slot_type: SlotType,
+    _admin=Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """获取指定 Slot 配置（需要管理员权限）。"""
     slot = await service.get_slot(db, slot_type)
     if slot is None:
         # 返回未配置的空壳
@@ -56,9 +71,10 @@ async def get_slot(slot_type: SlotType, db: AsyncSession = Depends(get_db)):
 async def configure_slot(
     slot_type: SlotType,
     body: SlotConfigureRequest,
+    _admin=Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    """配置 Slot。"""
+    """配置 Slot（需要管理员权限）。"""
     # 将 FallbackItem 列表转换为 dict 列表存储
     fallback_chain = [{"provider_id": str(item.provider_id), "model_id": item.model_id} for item in body.fallback_chain]
 
@@ -72,6 +88,47 @@ async def configure_slot(
         config=body.config,
     )
     return ApiResponse(data=await _slot_to_response(db, slot))
+
+
+@router.post("/{slot_type}/invoke", response_model=ApiResponse[SlotInvokeResponse])
+async def invoke_slot(
+    slot_type: SlotType,
+    body: SlotInvokeRequest,
+    _admin=Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+    encryption_key: str = Depends(get_encryption_key),
+):
+    """通过槽位调用推理（含资源池故障转移），需要管理员权限。"""
+    messages = [{"role": m.role, "content": m.content} for m in body.messages]
+
+    result = await service.invoke_slot(
+        db,
+        slot_type,
+        messages=messages,
+        max_tokens=body.max_tokens,
+        encryption_key=encryption_key,
+    )
+
+    routing = result["routing"]
+    completion = result["result"]
+
+    return ApiResponse(
+        data=SlotInvokeResponse(
+            result=CompletionResponse(
+                content=completion["content"],
+                usage=UsageInfo(**completion["usage"]),
+                latency_ms=completion["latency_ms"],
+                model=completion["model"],
+            ),
+            routing=RoutingInfo(
+                provider_name=routing["provider_name"],
+                model_id=routing["model_id"],
+                slot_type=routing["slot_type"],
+                used_resource_pool=routing["used_resource_pool"],
+                failover_trace=[FailoverTraceItem(**t) for t in routing["failover_trace"]],
+            ),
+        )
+    )
 
 
 # --- 内部辅助 ---

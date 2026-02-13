@@ -54,6 +54,12 @@
   --duration-fast: 150ms;
   --duration-normal: 250ms;
   --duration-slow: 400ms;
+
+  /* z-index 层级 */
+  --z-topbar: 30;
+  --z-sidebar: 40;
+  --z-dropdown: 50;
+  --z-toast: 100;
 }
 
 /* --- 基础样式 --- */
@@ -64,6 +70,30 @@ body {
     "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans SC", sans-serif;
   background: var(--color-surface-0);
   color: var(--color-text-primary);
+}
+
+/* 统一可见焦点 */
+button:focus-visible,
+a:focus-visible,
+[role="button"]:focus-visible,
+[role="option"]:focus-visible {
+  outline: 2px solid rgba(99, 102, 241, 0.6);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in,
+  .animate-expand,
+  .animate-spin-slow {
+    animation: none !important;
+  }
+
+  .glass-card,
+  .glass-panel,
+  .glass-btn-primary,
+  .glass-btn-ghost {
+    transition: none !important;
+  }
 }
 
 /* 自定义滚动条 */
@@ -124,7 +154,6 @@ body {
   box-shadow:
     0 0 0 1px rgba(255, 255, 255, 0.08) inset,
     0 8px 32px -4px rgba(0, 0, 0, 0.4);
-  transform: translateY(-1px);
 }
 
 /* 输入框毛玻璃 */
@@ -158,6 +187,7 @@ body {
   border-radius: var(--radius-md);
   color: white;
   font-weight: 600;
+  cursor: pointer;
   transition: all var(--duration-normal) var(--ease-glass);
   position: relative;
   overflow: hidden;
@@ -204,6 +234,7 @@ body {
   border-radius: var(--radius-md);
   color: var(--color-text-secondary);
   font-weight: 500;
+  cursor: pointer;
   transition: all var(--duration-normal) var(--ease-glass);
 }
 
@@ -384,4 +415,40 @@ body {
 
 .animate-spin-slow {
   animation: spin-slow 1.2s linear infinite;
+}
+
+/* 滑块控件 */
+.slider-glass {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+
+.slider-glass::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--color-accent-primary);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  cursor: pointer;
+  transition: box-shadow var(--duration-fast) var(--ease-glass);
+}
+
+.slider-glass::-webkit-slider-thumb:hover {
+  box-shadow: 0 0 8px rgba(99, 102, 241, 0.5);
+}
+
+.slider-glass::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--color-accent-primary);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  cursor: pointer;
 }

@@ -274,6 +274,19 @@
   - AC5：未配置的槽位在被调用时返回明确的错误信息（HTTP 503 + `"error": {"code": "SLOT_NOT_CONFIGURED"}`）
   - AC6：配置变更产生结构化日志（含变更前后快照）
 
+### US-9：LLM Studio — 交互式模型测试工作台（计划外，已实现）
+
+- **角色**：作为一个 LLM 工程师或系统管理员
+- **目标**：我需要一个交互式工作台来测试不同 Provider/模型的能力（Chat、Embedding、Rerank），验证槽位配置和故障转移行为
+- **前置条件**：已登录 + 至少配置了 1 个 Provider
+- **主流程**：
+  1. Playground：选择 Provider/Model → 三模式测试（Chat 流式对话 / Embedding 向量化+相似度矩阵 / Rerank 重排序）
+  2. 槽位测试：选择槽位 → 发送消息 → 查看路由决策 + 故障转移时间线
+- **验收标准**：
+  - AC1：Chat 模式可流式显示模型回复
+  - AC2：Embedding 模式可展示向量维度和余弦相似度矩阵
+  - AC3：槽位调用可展示 routing 信息和 failover_trace
+
 ---
 
 ## 3. 功能清单
@@ -308,6 +321,9 @@
 | F24 | 增量采集/去重引擎（R5-A 决议） | — | 1-1.5 人天 | 修正#4 | content hash（SHA-256）+ IngestionBatch 模型 |
 | F25 | Neo4j 最小连接层（R5-C 决议） | — | 1 人天 | 修正#6 | 仅连接池 + health check，无业务逻辑 |
 | F26 | 弹性策略 L0（连接池配置）（R5-C 决议） | — | 0.5 人天 | 修正#6 | SQLAlchemy pool_size/max_overflow 显式配置 |
+| F27 | LLM Studio（Playground + 槽位测试 + 推理代理网关）（计划外） | — | 5-7 人天 | 开发过程中 | 含后端 gateway API + 前端 Studio 模块 |
+
+> **UI 设计规范**：LLM Studio 采用 Liquid Glass 设计系统，布局为 OpenAI Playground 风格左右分栏。详见 `docs/designs/frontend/design.md` 第 10 章。
 
 **Must Have 工时汇总（R5 修订后）**：
 - **Wave 1 Must Have**：约 72-80 人天（原 F1-F17 调整后 + F18-F21 + F25-F26，含联调测试）
@@ -782,6 +798,12 @@ Phase 2     Phase 2.5   数据底座    语义搜索    前端+集成    假设�
 - **R5-C 投票**：折中方案——正方 3 : 反方 2 : 魔鬼代言人方案 1 : 弃权 1
 - **核心分歧**：赵一凡/陈思琪主张建立连接层保证架构完整性 vs 苏明远/王磊主张 Phase 1 聚焦用户价值
 - **决策**：Phase 1 保留 Neo4j 基础设施，建立最小连接层（1 人天），但禁止 Phase 1 业务代码依赖 Neo4j。弹性策略分层实施：L0-L2 纳入 Phase 1 各里程碑，L3 为 Should Have，L4 推迟
+
+### R6：LLM Studio 先于 VOC 功能实现
+
+- **决策**：在 VOC 数据导入/搜索/标签功能之前，优先实现 LLM Studio 工作台
+- **理由**：LLM Studio 是验证 llm-service 基础设施的必要工具；需要通过交互式测试确认 Provider 配置、模型调用、故障转移等底层能力正常后，才能放心构建依赖它们的上层 VOC 管线
+- **影响**：新增 gateway 代理 API + Studio 前端模块，约 5-7 人天
 
 ---
 

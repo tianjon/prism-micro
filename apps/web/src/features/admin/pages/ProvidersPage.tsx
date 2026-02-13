@@ -1,16 +1,16 @@
 /**
  * Provider 管理页 (/admin/providers)。
- * Provider 列表 + 新建 Provider Sheet。
+ * Provider 列表 + 页内创建组件。
  * 渐进披露：列表只显示名称/类型/状态，点击展开详情。
  */
 
-import { useState } from "react";
 import { Plus } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
+import { PageContainer } from "@/components/PageContainer";
 import { ErrorState } from "@/components/ErrorState";
 import { CardSkeleton } from "@/components/GlassSkeleton";
 import { ProviderCard } from "../components/ProviderCard";
-import { CreateProviderSheet } from "../components/CreateProviderSheet";
+import { CreateProviderInline } from "../components/CreateProviderInline";
 import { useProviders } from "../hooks/use-providers";
 
 export function ProvidersPage() {
@@ -24,51 +24,46 @@ export function ProvidersPage() {
     testProvider,
   } = useProviders();
 
-  const [isSheetOpen, setIsSheetOpen] = useState(false);
-
   // 加载中
   if (loadState === "loading") {
     return (
-      <div>
+      <PageContainer>
         <PageHeader title="Provider 管理" />
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 3 }).map((_, i) => (
             <CardSkeleton key={i} />
           ))}
         </div>
-      </div>
+      </PageContainer>
     );
   }
 
   // 错误
   if (loadState === "error") {
     return (
-      <div>
+      <PageContainer>
         <PageHeader title="Provider 管理" />
         <ErrorState message={error ?? "加载失败"} onRetry={reload} />
-      </div>
+      </PageContainer>
     );
   }
 
   return (
-    <div>
+    <PageContainer><div className="space-y-6">
       <PageHeader
         title="Provider 管理"
         description="管理 LLM Provider 配置（API 端点、密钥、连通性）"
-        actions={
-          <button
-            onClick={() => setIsSheetOpen(true)}
-            className="glass-btn-primary flex items-center gap-2 px-4 py-2 text-sm"
-          >
-            <Plus size={16} />
-            新建 Provider
-          </button>
-        }
+      />
+
+      {/* 页内创建组件 */}
+      <CreateProviderInline
+        providers={providers}
+        onSubmit={createProvider}
       />
 
       {/* Provider 列表 */}
       {providers.length === 0 ? (
-        <div className="flex min-h-[300px] flex-col items-center justify-center gap-4 text-center">
+        <div className="flex min-h-[200px] flex-col items-center justify-center gap-4 text-center">
           <div className="rounded-2xl bg-white/5 p-4">
             <Plus size={24} className="text-white/20" />
           </div>
@@ -77,15 +72,9 @@ export function ProvidersPage() {
               暂无 Provider
             </h3>
             <p className="mt-1 text-sm text-white/30">
-              创建你的第一个 Provider 以开始使用 LLM 服务
+              点击上方"新建 Provider"按钮，选择平台开始配置
             </p>
           </div>
-          <button
-            onClick={() => setIsSheetOpen(true)}
-            className="glass-btn-primary px-5 py-2 text-sm"
-          >
-            新建 Provider
-          </button>
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -99,13 +88,6 @@ export function ProvidersPage() {
           ))}
         </div>
       )}
-
-      {/* 新建 Provider Sheet */}
-      <CreateProviderSheet
-        isOpen={isSheetOpen}
-        onClose={() => setIsSheetOpen(false)}
-        onSubmit={createProvider}
-      />
-    </div>
+    </div></PageContainer>
   );
 }

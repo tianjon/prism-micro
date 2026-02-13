@@ -75,12 +75,19 @@ export interface RefreshResponse {
 
 // ========== Provider ==========
 
+export interface ProviderPreset {
+  preset_id: string;
+  name: string;
+  provider_type: string;
+  description: string;
+}
+
 export interface Provider {
   id: string;
   name: string;
   slug: string;
   provider_type: string;
-  base_url: string;
+  base_url: string | null;
   is_enabled: boolean;
   config: Record<string, unknown>;
   created_at: string;
@@ -90,9 +97,10 @@ export interface Provider {
 export interface ProviderCreate {
   name: string;
   slug: string;
-  provider_type: string;
-  base_url: string;
+  provider_type?: string;
+  base_url?: string;
   api_key: string;
+  preset_id?: string;
   config?: Record<string, unknown>;
 }
 
@@ -106,8 +114,13 @@ export interface ProviderUpdate {
   config?: Record<string, unknown>;
 }
 
+export interface ProviderModel {
+  id: string;
+  owned_by: string;
+}
+
 export interface ProviderTestRequest {
-  test_type?: "chat" | "embedding" | "rerank";
+  test_type?: "chat" | "embedding" | "rerank" | "models";
   test_model_id?: string;
 }
 
@@ -157,4 +170,98 @@ export interface SlotConfigureRequest {
   fallback_chain: FallbackItem[];
   is_enabled: boolean;
   config: Record<string, unknown>;
+}
+
+// ========== 推理代理网关 ==========
+
+export interface MessageItem {
+  role: string;
+  content: string;
+}
+
+export interface UsageInfo {
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+}
+
+export interface CompletionRequest {
+  provider_id: string;
+  model_id: string;
+  messages: MessageItem[];
+  stream?: boolean;
+  max_tokens?: number;
+  temperature?: number;
+  top_p?: number;
+}
+
+export interface CompletionResponse {
+  content: string;
+  usage: UsageInfo;
+  latency_ms: number;
+  model: string;
+}
+
+export interface EmbeddingRequest {
+  provider_id: string;
+  model_id: string;
+  input: string | string[];
+}
+
+export interface EmbeddingItem {
+  index: number;
+  values: number[];
+  dimensions: number;
+}
+
+export interface EmbeddingResponse {
+  embeddings: EmbeddingItem[];
+  usage: UsageInfo;
+  latency_ms: number;
+  model: string;
+}
+
+export interface RerankRequest {
+  provider_id: string;
+  model_id: string;
+  query: string;
+  documents: string[];
+}
+
+export interface RerankResultItem {
+  index: number;
+  document: string;
+  relevance_score: number;
+}
+
+export interface RerankResponse {
+  results: RerankResultItem[];
+  latency_ms: number;
+  model: string;
+}
+
+export interface SlotInvokeRequest {
+  messages: MessageItem[];
+  max_tokens?: number;
+}
+
+export interface FailoverTraceItem {
+  provider_name: string;
+  model_id: string;
+  success: boolean;
+  error: string | null;
+  latency_ms: number | null;
+}
+
+export interface RoutingInfo {
+  provider_name: string;
+  model_id: string;
+  slot_type: SlotType;
+  used_resource_pool: boolean;
+  failover_trace: FailoverTraceItem[];
+}
+
+export interface SlotInvokeResponse {
+  result: CompletionResponse;
+  routing: RoutingInfo;
 }

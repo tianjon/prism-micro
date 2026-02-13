@@ -43,6 +43,14 @@ def create_get_current_user(jwt_secret: str, user_lookup: UserLookup):
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
+        # 校验 token 类型：仅接受 access token
+        if payload.get("type") != "access":
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="token 类型无效，需要 access token",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
         user_id = payload.get("sub")
         if user_id is None:
             raise HTTPException(

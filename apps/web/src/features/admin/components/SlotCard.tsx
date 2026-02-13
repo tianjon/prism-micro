@@ -71,7 +71,7 @@ export function SlotCard({ slot, isExpanded, onToggle }: SlotCardProps) {
         {/* 降级链数量 */}
         {slot.fallback_chain.length > 0 && (
           <span className="rounded-full bg-white/5 px-2 py-0.5 text-xs text-white/40">
-            {slot.fallback_chain.length} 个降级
+            {slot.fallback_chain.length} 个备选
           </span>
         )}
 

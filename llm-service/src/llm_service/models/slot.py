@@ -32,7 +32,7 @@ class ModelSlot(Base, UUIDMixin, TimestampMixin):
     )
 
     slot_type: Mapped[SlotType] = mapped_column(
-        Enum(SlotType, schema="llm", name="slot_type"),
+        Enum(SlotType, schema="llm", name="slot_type", values_callable=lambda e: [x.value for x in e]),
         unique=True,
         nullable=False,
         comment="槽位类型",

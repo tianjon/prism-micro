@@ -23,6 +23,8 @@ llm-service 是 Prism 平台的 LLM 统一网关，屏蔽上游 Provider 差异�
 | LiteLLM 集成 | 统一调用层，替代自建 Provider 适配器（Phase 2 关键决策） |
 | 健康检查机制 | 被动标记 + 主动恢复探测 + Redis 健康状态缓存 |
 | 弹性 L0 | 连接池显式配置（R5-C 决议） |
+| 推理代理网关 | 通用 completions/embeddings/rerank 代理端点，供前端 Studio 和其他应用层消费 |
+| Provider 内置预设 | 常用 Provider（OpenAI、Anthropic、DeepSeek 等）一键导入 |
 
 ### 1.2 PRD 功能映射
 
@@ -33,6 +35,7 @@ llm-service 是 Prism 平台的 LLM 统一网关，屏蔽上游 Provider 差异�
 | 现有 Embedding API | 固定 embedding 槽位 | POST /api/llm/embedding + 批量分片 |
 | 现有 Rerank API | 固定 rerank 槽位 | POST /api/llm/rerank |
 | F26: 弹性 L0 | 连接池配置 | SQLAlchemy pool_size/max_overflow 显式配置 |
+| F27: LLM Studio 网关 | 后端部分 | POST /api/llm/completions + /embeddings + /rerank + /slots/{type}/invoke |
 
 ### 1.3 里程碑
 
@@ -67,6 +70,7 @@ llm-service/
 │       │   ├── chat.py               # POST /api/llm/chat
 │       │   ├── embedding.py          # POST /api/llm/embedding
 │       │   ├── rerank.py             # POST /api/llm/rerank
+│       │   ├── gateway.py            # 推理代理端点（completions/embeddings/rerank）
 │       │   ├── admin_providers.py    # Provider CRUD + 连通性测试
 │       │   ├── admin_slots.py        # 槽位管理
 │       │   ├── health.py             # GET /health
@@ -75,6 +79,7 @@ llm-service/
 │       │   │   ├── chat.py
 │       │   │   ├── embedding.py
 │       │   │   ├── rerank.py
+│       │   │   ├── gateway.py        # 代理请求/响应模型
 │       │   │   ├── provider.py
 │       │   │   ├── slot.py
 │       │   │   └── common.py         # 通用响应包装
@@ -87,6 +92,7 @@ llm-service/
 │       │   ├── slot_service.py       # 槽位配置 CRUD
 │       │   ├── health_checker.py     # 健康检查（被动 + 主动恢复）
 │       │   ├── litellm_adapter.py    # LiteLLM 封装层
+│       │   ├── presets.py            # Provider 内置预设（OpenAI/Anthropic/DeepSeek 等）
 │       │   └── encryption.py         # API Key 加解密
 │       │
 │       ├── models/                    # SQLAlchemy ORM 模型
@@ -847,7 +853,41 @@ Rerank 调用，固定使用 `rerank` 槽位。
 }
 ```
 
-### 4.3 错误码
+### 4.3 推理代理 API
+
+通用推理代理端点，供 Studio Playground 和其他应用层消费。所有端点均需 `require_admin` 权限。
+
+#### POST /api/llm/completions — Chat 补全代理
+
+支持 stream 参数切换流式/非流式。
+
+**请求体**：`CompletionRequest { provider_id, model_id, messages[], stream?, max_tokens? }`
+
+**成功响应**：`CompletionResponse { content, usage, latency_ms, model }`
+
+**流式响应**：SSE `text/event-stream`，增量 delta + 最终 usage 汇总
+
+#### POST /api/llm/embeddings — 向量化代理
+
+**请求体**：`EmbeddingRequest { provider_id, model_id, input }`
+
+**成功响应**：`EmbeddingResponse { embeddings[{index, values, dimensions}], usage, latency_ms, model }`
+
+#### POST /api/llm/rerank — 重排序代理
+
+**请求体**：`RerankRequest { provider_id, model_id, query, documents[] }`
+
+**成功响应**：`RerankResponse { results[{index, document, relevance_score}], latency_ms, model }`
+
+#### POST /api/llm/slots/{slot_type}/invoke — 槽位调用（含故障转移）
+
+**请求体**：`SlotInvokeRequest { messages[], max_tokens? }`
+
+**成功响应**：`SlotInvokeResponse { result: CompletionResponse, routing: RoutingInfo }`
+
+**RoutingInfo**：`{ provider_name, model_id, slot_type, used_resource_pool, failover_trace[] }`
+
+### 4.4 错误码
 
 | HTTP 状态码 | 错误码 | 含义 | 触发场景 |
 |-------------|--------|------|----------|
@@ -861,6 +901,8 @@ Rerank 调用，固定使用 `rerank` 槽位。
 | 502 | `PROVIDER_ERROR` | 上游 Provider 错误 | LiteLLM 返回非预期错误 |
 | 503 | `SLOT_NOT_CONFIGURED` | 槽位未配置 | 调用未配置的槽位 |
 | 503 | `ALL_PROVIDERS_UNAVAILABLE` | 所有 Provider 不可用 | 主模型 + 降级链全部失败 |
+| 502 | `LLM_UPSTREAM_ERROR` | 上游 Provider 代理错误 | 代理调用 Provider API 返回非预期错误 |
+| 503 | `LLM_ALL_MODELS_FAILED` | 所有模型失败 | 槽位调用时主模型 + 资源池全部失败 |
 
 ---
 

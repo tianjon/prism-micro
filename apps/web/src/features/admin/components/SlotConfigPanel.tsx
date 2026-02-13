@@ -1,12 +1,13 @@
 /**
  * 槽位配置面板。
- * 展开后显示：Provider 选择 + Model ID + 降级链 + 测试 + 保存。
+ * 展示：Provider 选择 + Model ID + 资源池 + 测试 + 保存。
  */
 
-import { useState, useEffect } from "react";
-import { Loader2, Save } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { Loader2, Save, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { SLOT_META } from "@/lib/constants";
+import { useToast } from "@/hooks/use-toast";
+import { ICON_SIZE } from "@/lib/icon-sizes";
 import type {
   SlotConfig,
   SlotConfigureRequest,
@@ -14,10 +15,11 @@ import type {
   ProviderTestResponse,
 } from "@/api/types";
 import { ProviderCombobox } from "./ProviderCombobox";
+import { ModelCombobox } from "./ModelCombobox";
 import {
-  FallbackChainEditor,
-  type FallbackEntry,
-} from "./FallbackChainEditor";
+  ResourcePoolEditor,
+  type ResourcePoolEntry,
+} from "./ResourcePoolEditor";
 import { ConnectivityTestButton } from "./ConnectivityTestButton";
 
 interface SlotConfigPanelProps {
@@ -25,7 +27,6 @@ interface SlotConfigPanelProps {
   providers: Provider[];
   onSave: (slotType: string, data: SlotConfigureRequest) => Promise<boolean>;
   onTest: (providerId: string) => Promise<ProviderTestResponse | null>;
-  onCancel: () => void;
 }
 
 export function SlotConfigPanel({
@@ -33,10 +34,9 @@ export function SlotConfigPanel({
   providers,
   onSave,
   onTest,
-  onCancel,
 }: SlotConfigPanelProps) {
-  const meta = SLOT_META[slot.slot_type];
   const [isSaving, setIsSaving] = useState(false);
+  const { toast } = useToast();
 
   // 表单状态
   const [providerId, setProviderId] = useState<string>(
@@ -44,7 +44,7 @@ export function SlotConfigPanel({
   );
   const [modelId, setModelId] = useState(slot.primary_model_id ?? "");
   const [isEnabled, setIsEnabled] = useState(slot.is_enabled);
-  const [fallbackChain, setFallbackChain] = useState<FallbackEntry[]>(
+  const [resourcePool, setResourcePool] = useState<ResourcePoolEntry[]>(
     slot.fallback_chain.map((f) => ({
       provider_id: f.provider.id,
       model_id: f.model_id,
@@ -52,11 +52,11 @@ export function SlotConfigPanel({
   );
 
   // 当 slot 变化时重置表单
-  useEffect(() => {
+  const resetForm = useCallback(() => {
     setProviderId(slot.primary_provider?.id ?? "");
     setModelId(slot.primary_model_id ?? "");
     setIsEnabled(slot.is_enabled);
-    setFallbackChain(
+    setResourcePool(
       slot.fallback_chain.map((f) => ({
         provider_id: f.provider.id,
         model_id: f.model_id,
@@ -64,23 +64,36 @@ export function SlotConfigPanel({
     );
   }, [slot]);
 
+  useEffect(() => {
+    resetForm();
+  }, [resetForm]);
+
   const isValid = providerId.length > 0 && modelId.length > 0;
 
   const handleSave = async () => {
     if (!isValid) return;
     setIsSaving(true);
-    const success = await onSave(slot.slot_type, {
-      primary_provider_id: providerId,
-      primary_model_id: modelId,
-      fallback_chain: fallbackChain.filter(
-        (f) => f.provider_id && f.model_id,
-      ),
-      is_enabled: isEnabled,
-      config: {},
-    });
-    setIsSaving(false);
-    if (success) {
-      onCancel();
+    try {
+      const success = await onSave(slot.slot_type, {
+        primary_provider_id: providerId,
+        primary_model_id: modelId,
+        fallback_chain: resourcePool.filter(
+          (f) => f.provider_id && f.model_id,
+        ),
+        is_enabled: isEnabled,
+        config: {},
+      });
+      if (success) {
+        toast({ title: "配置已保存", variant: "success" });
+      }
+    } catch (err) {
+      toast({
+        title: "保存失败",
+        description: err instanceof Error ? err.message : "未知错误",
+        variant: "error",
+      });
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -90,24 +103,19 @@ export function SlotConfigPanel({
   };
 
   return (
-    <div className="animate-expand border-t border-white/5 p-5">
-      {/* 面板标题 */}
-      <div className="mb-5">
-        <h4 className="text-sm font-semibold text-white">
-          配置{meta.label}
-        </h4>
-        <p className="mt-0.5 text-xs text-white/40">{meta.description}</p>
-      </div>
-
-      <div className="space-y-5">
+    <div className="p-6">
+      <div className="space-y-6">
         {/* 启用/禁用开关 */}
         <div className="flex items-center justify-between">
           <label className="text-sm font-medium text-white/60">启用</label>
           <button
             type="button"
             onClick={() => setIsEnabled(!isEnabled)}
+            role="switch"
+            aria-checked={isEnabled}
+            aria-label="启用槽位"
             className={cn(
-              "relative h-6 w-11 rounded-full transition-colors duration-200",
+              "relative h-6 w-11 cursor-pointer rounded-full transition-colors duration-200",
               isEnabled ? "bg-indigo-500" : "bg-white/10",
             )}
           >
@@ -120,37 +128,36 @@ export function SlotConfigPanel({
           </button>
         </div>
 
-        {/* 主 Provider */}
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium text-white/60">
-            Provider
-          </label>
-          <ProviderCombobox
-            providers={providers}
-            value={providerId || null}
-            onChange={setProviderId}
-          />
+        {/* 主 Provider + Model 并排 */}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-white/60">
+              主 Provider
+            </label>
+            <ProviderCombobox
+              providers={providers}
+              value={providerId || null}
+              onChange={setProviderId}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-white/60">
+              主模型
+            </label>
+            <ModelCombobox
+              providerId={providerId || null}
+              value={modelId}
+              onChange={setModelId}
+              placeholder="选择或输入模型 ID..."
+            />
+          </div>
         </div>
 
-        {/* Model ID */}
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium text-white/60">
-            Model ID
-          </label>
-          <input
-            type="text"
-            value={modelId}
-            onChange={(e) => setModelId(e.target.value)}
-            placeholder="例如 qwen2.5-7b-instruct"
-            className="glass-input h-10 w-full px-3 text-sm"
-          />
-        </div>
-
-        {/* 降级链 */}
-        <FallbackChainEditor
-          chain={fallbackChain}
+        {/* 资源池 */}
+        <ResourcePoolEditor
+          pool={resourcePool}
           providers={providers}
-          onChange={setFallbackChain}
+          onChange={setResourcePool}
         />
 
         {/* 测试连通性 */}
@@ -160,10 +167,11 @@ export function SlotConfigPanel({
         <div className="flex items-center justify-end gap-3 pt-2">
           <button
             type="button"
-            onClick={onCancel}
-            className="glass-btn-ghost px-4 py-2 text-sm"
+            onClick={resetForm}
+            className="glass-btn-ghost flex items-center gap-1.5 px-4 py-2 text-sm"
           >
-            取消
+            <RotateCcw size={ICON_SIZE.md} />
+            重置
           </button>
           <button
             type="button"
@@ -175,9 +183,9 @@ export function SlotConfigPanel({
             )}
           >
             {isSaving ? (
-              <Loader2 size={14} className="animate-spin" />
+              <Loader2 size={ICON_SIZE.md} className="animate-spin" />
             ) : (
-              <Save size={14} />
+              <Save size={ICON_SIZE.md} />
             )}
             {isSaving ? "保存中..." : "保存配置"}
           </button>

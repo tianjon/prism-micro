@@ -1,6 +1,7 @@
 """API Key 生成、加密存储与验证工具。"""
 
 import hashlib
+import hmac
 import secrets
 
 API_KEY_PREFIX = "prism_"
@@ -24,8 +25,8 @@ def hash_api_key(plain_key: str) -> str:
 
 
 def verify_api_key(plain_key: str, stored_hash: str) -> bool:
-    """验证 API Key 是否匹配。"""
-    return _hash_key(plain_key) == stored_hash
+    """验证 API Key 是否匹配（恒时比较，防止时间侧信道）。"""
+    return hmac.compare_digest(_hash_key(plain_key), stored_hash)
 
 
 def get_key_prefix(plain_key: str) -> str:

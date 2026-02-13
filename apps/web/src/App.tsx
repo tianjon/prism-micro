@@ -8,6 +8,8 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { LoginPage } from "@/features/auth/pages/LoginPage";
 import { SlotsPage } from "@/features/admin/pages/SlotsPage";
 import { ProvidersPage } from "@/features/admin/pages/ProvidersPage";
+import { PlaygroundPage } from "@/features/studio/pages/PlaygroundPage";
+import { SlotTestPage } from "@/features/studio/pages/SlotTestPage";
 
 export function App() {
   return (
@@ -22,6 +24,8 @@ export function App() {
             <Route path="/" element={<Navigate to="/admin/slots" replace />} />
             <Route path="/admin/slots" element={<SlotsPage />} />
             <Route path="/admin/providers" element={<ProvidersPage />} />
+            <Route path="/studio/playground" element={<PlaygroundPage />} />
+            <Route path="/studio/slots" element={<SlotTestPage />} />
           </Route>
         </Route>
 

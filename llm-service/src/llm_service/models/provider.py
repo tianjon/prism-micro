@@ -23,7 +23,7 @@ class Provider(Base, UUIDMixin, TimestampMixin):
     name: Mapped[str] = mapped_column(String(100), unique=True, nullable=False, comment="显示名称")
     slug: Mapped[str] = mapped_column(String(50), unique=True, nullable=False, comment="标识符")
     provider_type: Mapped[str] = mapped_column(String(50), nullable=False, comment="LiteLLM provider 类型，如 openai")
-    base_url: Mapped[str] = mapped_column(String(500), nullable=False, comment="API Base URL")
+    base_url: Mapped[str | None] = mapped_column(String(500), nullable=True, comment="API Base URL")
     api_key_encrypted: Mapped[str] = mapped_column(Text, nullable=False, comment="加密存储的 API Key")
     is_enabled: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true", comment="是否启用")
     config: Mapped[dict] = mapped_column(JSONB, default=dict, server_default="{}", comment="额外配置")

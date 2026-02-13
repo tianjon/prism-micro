@@ -43,3 +43,17 @@ export const SLOT_META = {
 
 /** 槽位类型的有序列表 */
 export const SLOT_TYPES = ["fast", "reasoning", "embedding", "rerank"] as const;
+
+/** z-index 层级常量 */
+export const Z_INDEX = {
+  /** 基础层（卡片悬浮等） */
+  card: 10,
+  /** 顶栏 + 遮罩 */
+  topbar: 30,
+  /** 侧边栏 */
+  sidebar: 40,
+  /** 下拉菜单 / Combobox 弹出层 */
+  dropdown: 50,
+  /** Toast 通知 */
+  toast: 100,
+} as const;

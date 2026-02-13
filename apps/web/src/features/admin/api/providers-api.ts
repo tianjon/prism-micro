@@ -9,10 +9,21 @@ import type {
   PaginatedResponse,
   Provider,
   ProviderCreate,
+  ProviderModel,
+  ProviderPreset,
   ProviderUpdate,
   ProviderTestRequest,
   ProviderTestResponse,
 } from "@/api/types";
+
+/** 获取内置 Provider 预设列表 */
+export async function fetchProviderPresets(): Promise<ApiResponse<ProviderPreset[]>> {
+  return apiClient.request<ApiResponse<ProviderPreset[]>>({
+    method: "GET",
+    path: ENDPOINTS.PROVIDER_PRESETS,
+    skipAuth: true,
+  });
+}
 
 /** 获取 Provider 列表 */
 export async function fetchProviders(
@@ -66,6 +77,16 @@ export async function deleteProvider(
   return apiClient.request<ApiResponse<{ message: string }>>({
     method: "DELETE",
     path: ENDPOINTS.PROVIDER(id),
+  });
+}
+
+/** 获取 Provider 可用模型列表 */
+export async function fetchProviderModels(
+  id: string,
+): Promise<ApiResponse<ProviderModel[]>> {
+  return apiClient.request<ApiResponse<ProviderModel[]>>({
+    method: "GET",
+    path: ENDPOINTS.PROVIDER_MODELS(id),
   });
 }
 
