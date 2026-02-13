@@ -5,6 +5,8 @@ description = "Prism VOC 数据处理服务：数据导入、AI 管线、语义�
 requires-python = ">=3.12"
 dependencies = [
     "prism-shared",
+    "pgvector>=0.3",
+    "alembic>=1.10",
 ]
 
 [build-system]

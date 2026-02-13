@@ -236,7 +236,7 @@ VOC 服务使用旧版 `get_current_user`（仅 JWT），Agent 服务使用新�
 |---------|---------|---------|---------|------|
 | F1 | CSV/Excel 导入 + LLM Schema 自动映射 | 完全覆盖 | voc-service, frontend | 完整导入 API、映射预览、确认流程 |
 | F2 | Stage 2 标签涌现 + 基础标准化 | 完全覆盖 | voc-service | reasoning 槽位 + fast 槽位标准化 |
-| F3 | Stage 3 向量化 + pgvector 索引 | 完全覆盖 | voc-service | vector(4096) + ivfflat 索引 |
+| F3 | Stage 3 向量化 + pgvector 索引 | 完全覆盖 | voc-service | vector(1024) + HNSW 索引 |
 | F4 | vector_search 语义搜索 API | 完全覆盖 | voc-service, frontend | pgvector ANN + 可选 rerank + 过滤器 |
 | F5 | LLM 输出守卫层 L1 + L2 | 完全覆盖 | voc-service | FormatGuard + SemanticGuard |
 | F6 | 置信度三档展示 + "AI 生成"标注 | 完全覆盖 | voc-service, frontend | ConfidenceBadge + AiDisclaimer 组件 |

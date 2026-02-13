@@ -61,6 +61,7 @@ class EmbeddingRequest(BaseModel):
     provider_id: str = Field(description="Provider UUID")
     model_id: str = Field(description="模型 ID")
     input: str | list[str] = Field(description="待向量化的文本（单个或数组）")
+    dimensions: int | None = Field(default=None, description="输出向量维度（模型须支持 Matryoshka）")
 
 
 class EmbeddingItem(BaseModel):

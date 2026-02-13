@@ -731,6 +731,7 @@ async def call_embedding(
     model_id: str,
     input_texts: str | list[str],
     encryption_key: str,
+    dimensions: int | None = None,
 ) -> dict:
     """
     Embedding 代理。
@@ -742,6 +743,10 @@ async def call_embedding(
     if isinstance(input_texts, str):
         input_texts = [input_texts]
 
+    payload: dict = {"model": model_id, "input": input_texts}
+    if dimensions is not None:
+        payload["dimensions"] = dimensions
+
     start = time.monotonic()
     try:
         async with httpx.AsyncClient(timeout=60.0) as client:
@@ -751,7 +756,7 @@ async def call_embedding(
                     "Authorization": f"Bearer {api_key}",
                     "Content-Type": "application/json",
                 },
-                json={"model": model_id, "input": input_texts},
+                json=payload,
             )
     except (httpx.TimeoutException, httpx.ConnectError) as e:
         raise AppException(

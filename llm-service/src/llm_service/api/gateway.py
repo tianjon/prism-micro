@@ -87,6 +87,7 @@ async def embeddings(
         model_id=body.model_id,
         input_texts=body.input,
         encryption_key=encryption_key,
+        dimensions=body.dimensions,
     )
     return ApiResponse(
         data=EmbeddingResponse(

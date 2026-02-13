@@ -82,7 +82,7 @@ Python 版本锁定为 3.12（见 `.python-version`）。
 - **前端图标**: Lucide React + `ICON_SIZE` 常量体系（`apps/web/src/lib/icon-sizes.ts`）
 - **CLI**: Typer
 - **HTTP 客户端**: httpx
-- **向量检索**: pgvector（4096 维，Qwen-Embedding-8B）
+- **向量检索**: pgvector（1024 维，HNSW 索引，Qwen-Embedding-8B）
 
 ## 关键设计
 

@@ -267,7 +267,7 @@ CREATE TABLE voc.semantic_units (
     intent VARCHAR(100),
     sentiment VARCHAR(20) CHECK (sentiment IN ('positive', 'negative', 'neutral', 'mixed')),
     confidence FLOAT,
-    embedding vector(4096),                   -- pgvector, Qwen-Embedding-8B
+    embedding vector(1024),                   -- pgvector, Qwen-Embedding-8B
     sequence_index INTEGER DEFAULT 0,         -- 在原始 Voice 中的顺序
     created_at TIMESTAMPTZ DEFAULT now()
 );
@@ -276,7 +276,7 @@ CREATE INDEX idx_units_voice ON voc.semantic_units(voice_id);
 CREATE INDEX idx_units_sentiment ON voc.semantic_units(sentiment);
 CREATE INDEX idx_units_intent ON voc.semantic_units(intent);
 CREATE INDEX idx_units_embedding ON voc.semantic_units
-    USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+    USING hnsw (embedding vector_cosine_ops) WITH (m = 16, ef_construction = 64);
 
 -- ============================================================
 -- EmergentTag（涌现标签）
@@ -1177,7 +1177,7 @@ sequenceDiagram
 
     Search->>LLM: POST /api/llm/embeddings
     Note over Search,LLM: 将查询文本向量化
-    LLM-->>Search: query_vector (4096维)
+    LLM-->>Search: query_vector (1024维)
 
     Search->>DB: SELECT ... FROM semantic_units<br/>ORDER BY embedding <=> query_vector<br/>LIMIT 40
     Note over Search,DB: pgvector ANN 搜索，取 2x top_k 候选
@@ -1269,7 +1269,7 @@ class VocServiceSettings(BaseSettings):
     pipeline_batch_size: int = 50                  # 每次从 DB 取待处理记录数
     pipeline_max_retries: int = 3                  # 单条 Voice 最大重试次数
     embedding_batch_size: int = 20                 # 向量化批次大小
-    embedding_dimension: int = 4096                # Qwen-Embedding-8B
+    embedding_dimension: int = 1024                # Qwen-Embedding-8B
 
     # === Schema 映射 ===
     mapping_confidence_auto_threshold: float = 0.8   # >= 此值自动通过
@@ -1612,7 +1612,7 @@ class LLMClient:
 
     async def embedding(self, *, texts: list[str]) -> list[list[float]]:
         """
-        调用 llm-service Embedding API，返回 4096 维向量列表。
+        调用 llm-service Embedding API，返回 1024 维向量列表。
 
         # 当前 slot invoke 不支持 embedding，使用直接端点 + slot 配置查询
         # 需通过 /api/llm/slots/embedding 查询获取 provider_id 和 model_id
@@ -2458,7 +2458,7 @@ logger = logging.getLogger(__name__)
 
 
 class EmbeddingProcessor:
-    """Stage 3: SemanticUnit -> embedding vector (Qwen-Embedding-8B, 4096 维)"""
+    """Stage 3: SemanticUnit -> embedding vector (Qwen-Embedding-8B, 1024 维)"""
 
     def __init__(self, llm_client: LLMClient, db: AsyncSession, settings: VocServiceSettings):
         self._llm = llm_client
@@ -3158,7 +3158,7 @@ def mock_llm_client() -> LLMClient:
     }
 
     # Mock Embedding 响应
-    client.embedding.return_value = [[0.1] * 4096]
+    client.embedding.return_value = [[0.1] * 1024]
 
     # Mock Rerank 响应
     client.rerank.return_value = [{"index": 0, "relevance_score": 0.95}]

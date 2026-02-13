@@ -297,7 +297,7 @@
 |---|------|----------|------|---------|---------|
 | F1 | CSV/Excel 数据导入 + LLM Schema 自动映射（R5-A 决议，原"CSV 数据导入"扩展） | 4.18 | 12-15 人天 | b, 修正#1 | 含 Excel 解析（openpyxl）+ LLM 映射 Prompt + SchemaMapping 模型 + 前端映射预览 |
 | F2 | Stage 2 标签涌现 + 基础标准化 | 4.00 | 5 人天 | d | 附三个质量保障条件 |
-| F3 | Stage 3 向量化 + pgvector 索引 | 4.21 | 3 人天 | b | Qwen-Embedding-8B, 4096 维 |
+| F3 | Stage 3 向量化 + pgvector 索引 | 4.21 | 3 人天 | b | Qwen-Embedding-8B, 1024 维, HNSW 索引 |
 | F4 | `vector_search` 语义搜索 API | 4.21 | 3 人天 | b | P95 < 2 秒 |
 | F5 | LLM 输出守卫层 L1（格式校验）+ L2（语义一致性） | 3.85 | 3 人天 | b, d | 周安安全底线 |
 | F6 | 置信度三档展示 + "AI 生成"标注 | 4.00 | 2 人天 | d | 不展示具体数值，仅颜色编码 |
@@ -400,7 +400,7 @@ SemanticUnit（语义单元，1 Voice → 1-N Unit）
 ├── intent: String
 ├── sentiment: Enum (positive / negative / neutral / mixed)
 ├── confidence: Float
-├── embedding: vector(4096) (pgvector, Qwen-Embedding-8B)
+├── embedding: vector(1024) (pgvector, Qwen-Embedding-8B, HNSW)
 └── created_at: Timestamp
 
 EmergentTag（涌现标签）
