@@ -63,6 +63,48 @@ _run_migrations() {
     _info "数据库迁移完成"
 }
 
+_seed_admin_user() {
+    # 幂等：邮箱已存在时跳过
+    _info "检查默认管理员用户..."
+    cd "$PROJECT_DIR"
+    uv run python -c "
+import asyncio
+from sqlalchemy import select, text
+from prism_shared.db.session import create_engine, create_session_factory
+from prism_shared.auth.password import hash_password
+from prism_shared.config import BaseAppSettings
+
+async def seed():
+    settings = BaseAppSettings()
+    engine = create_engine(settings.database_url)
+    session_factory = create_session_factory(engine)
+    async with session_factory() as session:
+        result = await session.execute(
+            text(\"SELECT id FROM auth.users WHERE email = 'admin@prism.dev'\")
+        )
+        if result.first() is not None:
+            print('SKIP')
+            await engine.dispose()
+            return
+        hashed = hash_password('admin123')
+        await session.execute(text(
+            \"INSERT INTO auth.users (email, username, hashed_password, is_active, role) \"
+            \"VALUES ('admin@prism.dev', 'admin', :hashed, true, 'admin')\"
+        ), {'hashed': hashed})
+        await session.commit()
+        print('CREATED')
+    await engine.dispose()
+
+result = asyncio.run(seed())
+" 2>&1 | while read -r line; do
+        case "$line" in
+            SKIP)    _info "管理员用户已存在（admin@prism.dev）" ;;
+            CREATED) _info "已创建默认管理员（admin@prism.dev / admin123）" ;;
+            *)       ;; # 忽略其他输出
+        esac
+    done
+}
+
 # ---------- 命令实现 ----------
 
 do_start() {
@@ -76,9 +118,10 @@ do_start() {
     # 前置检查：PostgreSQL 必须在线
     _wait_for_postgres || return 1
 
-    # 幂等初始化：schema + 迁移
+    # 幂等初始化：schema + 迁移 + 种子数据
     _ensure_db_schemas
     _run_migrations
+    _seed_admin_user
 
     # 启动 uvicorn
     _info "启动后端服务 ($HOST:$PORT)..."
