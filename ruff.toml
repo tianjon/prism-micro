@@ -1,0 +1,15 @@
+target-version = "py312"
+line-length = 120
+
+[lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = [
+    "B008",   # Depends() 在默认参数中是 FastAPI 标准模式
+    "UP046",  # Pydantic Generic 模型不支持 PEP 695 type parameter 语法
+]
+
+[lint.isort]
+known-first-party = ["prism_shared", "llm_service", "user_service", "voc_service", "agent_service", "prism_cli"]
+
+[format]
+quote-style = "double"

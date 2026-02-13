@@ -1,0 +1,61 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    container_name: prism-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: prism
+      POSTGRES_PASSWORD: prism
+      POSTGRES_DB: prism
+    volumes:
+      - ${HOME}/.prism/data/postgres:/var/lib/postgresql/data
+      - ./scripts/initdb:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U prism"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - prism-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: prism-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - ${HOME}/.prism/data/redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - prism-net
+
+  neo4j:
+    image: neo4j:5
+    container_name: prism-neo4j
+    restart: unless-stopped
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    environment:
+      NEO4J_AUTH: neo4j/prism
+    volumes:
+      - ${HOME}/.prism/data/neo4j:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:7474 || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - prism-net
+
+networks:
+  prism-net:
+    driver: bridge

@@ -1,0 +1,27 @@
+"""域前缀错误码注册表。"""
+
+from enum import StrEnum
+
+
+class ErrorDomain(StrEnum):
+    """错误码域前缀。"""
+
+    SHARED = "SHARED"
+    AUTH = "AUTH"
+    LLM = "LLM"
+    AGENT = "AGENT"
+    VOC = "VOC"
+
+
+class SharedErrorCode(StrEnum):
+    """shared 层通用错误码。"""
+
+    INTERNAL_ERROR = "SHARED_INTERNAL_ERROR"
+    VALIDATION_ERROR = "SHARED_VALIDATION_ERROR"
+    NOT_FOUND = "SHARED_NOT_FOUND"
+    UNAUTHORIZED = "SHARED_UNAUTHORIZED"
+    FORBIDDEN = "SHARED_FORBIDDEN"
+    DATABASE_ERROR = "SHARED_DATABASE_ERROR"
+    REDIS_ERROR = "SHARED_REDIS_ERROR"
+    NEO4J_ERROR = "SHARED_NEO4J_ERROR"
+    RATE_LIMITED = "SHARED_RATE_LIMITED"

@@ -1,0 +1,60 @@
+[importlinter]
+root_packages =
+    prism_shared
+    llm_service
+    user_service
+    voc_service
+    agent_service
+    prism_cli
+
+[importlinter:contract:shared-independence]
+name = shared 不得依赖任何上层服务
+type = forbidden
+source_modules =
+    prism_shared
+forbidden_modules =
+    llm_service
+    user_service
+    voc_service
+    agent_service
+    prism_cli
+
+[importlinter:contract:service-isolation-llm]
+name = llm-service 不得导入其他服务
+type = forbidden
+source_modules =
+    llm_service
+forbidden_modules =
+    user_service
+    voc_service
+    agent_service
+
+[importlinter:contract:service-isolation-user]
+name = user-service 不得导入其他服务
+type = forbidden
+source_modules =
+    user_service
+forbidden_modules =
+    llm_service
+    voc_service
+    agent_service
+
+[importlinter:contract:service-isolation-voc]
+name = voc-service 不得导入其他服务
+type = forbidden
+source_modules =
+    voc_service
+forbidden_modules =
+    llm_service
+    user_service
+    agent_service
+
+[importlinter:contract:service-isolation-agent]
+name = agent-service 不得导入其他服务
+type = forbidden
+source_modules =
+    agent_service
+forbidden_modules =
+    llm_service
+    user_service
+    voc_service
