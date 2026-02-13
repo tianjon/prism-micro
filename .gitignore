@@ -35,6 +35,15 @@ Thumbs.db
 .env
 .env.local
 
+# Runtime files
+.backend.pid
+.backend.log
+.frontend.pid
+.frontend.log
+
+# Build output
+dist/
+
 # AI/IDE tool directories
 .claude/
 .codex/
