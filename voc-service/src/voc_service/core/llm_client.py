@@ -38,9 +38,10 @@ class LLMClient:
             推理结果 dict（包含 result.content）
         """
         url = f"{self._base_url}/api/llm/slots/{slot}/invoke"
-        payload = {
+        payload: dict = {
             "messages": messages,
             "max_tokens": max_tokens,
+            "temperature": temperature,
         }
         headers = {}
         if api_key:

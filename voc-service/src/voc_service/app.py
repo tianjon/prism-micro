@@ -1,5 +1,7 @@
 """FastAPI 应用工厂。"""
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
@@ -22,21 +24,28 @@ def create_app(settings: VocServiceSettings | None = None) -> FastAPI:
 
     configure_logging(log_level=settings.log_level, json_output=not settings.debug)
 
-    app = FastAPI(
-        title="Prism VOC Service",
-        description="VOC 数据处理：数据导入、AI 管线、语义搜索、涌现标签",
-        version="0.1.0",
-    )
-
-    # 存入 app.state 供依赖注入使用
-    app.state.settings = settings
-
     # 数据库引擎 & session 工厂
     pool_config = PoolConfig(
         pool_size=settings.db_pool_size,
         max_overflow=settings.db_max_overflow,
     )
     engine = create_engine(settings.database_url, pool_config)
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        yield
+        await engine.dispose()
+
+    app = FastAPI(
+        title="Prism VOC Service",
+        description="VOC 数据处理：数据导入、AI 管线、语义搜索、涌现标签",
+        version="0.1.0",
+        lifespan=lifespan,
+    )
+
+    # 存入 app.state 供依赖注入使用
+    app.state.settings = settings
+
     app.state.engine = engine
     app.state.session_factory = create_session_factory(engine)
 
@@ -55,10 +64,5 @@ def create_app(settings: VocServiceSettings | None = None) -> FastAPI:
         return JSONResponse(
             content=ApiResponse(data={"status": "ok", "service": "voc-service"}).model_dump(mode="json")
         )
-
-    # 生命周期：关闭引擎
-    @app.on_event("shutdown")
-    async def shutdown():
-        await engine.dispose()
 
     return app

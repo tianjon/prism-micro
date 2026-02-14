@@ -40,10 +40,15 @@ async def _validation_exception_handler(request: Request, exc: RequestValidation
             error=ErrorDetail(
                 code="VALIDATION_ERROR",
                 message=first_msg,
-                details={"errors": [{
-                    "field": " → ".join(str(loc) for loc in e.get("loc", [])),
-                    "message": e.get("msg", ""),
-                } for e in errors]},
+                details={
+                    "errors": [
+                        {
+                            "field": " → ".join(str(loc) for loc in e.get("loc", [])),
+                            "message": e.get("msg", ""),
+                        }
+                        for e in errors
+                    ]
+                },
             ),
             meta=meta,
         ).model_dump(mode="json"),
@@ -60,7 +65,7 @@ async def _unhandled_exception_handler(request: Request, exc: Exception) -> JSON
         content=ErrorResponse(
             error=ErrorDetail(
                 code="INTERNAL_ERROR",
-                message=f"服务器内部错误：{type(exc).__name__}: {exc}",
+                message="服务器内部错误，请稍后重试",
             ),
             meta=meta,
         ).model_dump(mode="json"),

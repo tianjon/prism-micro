@@ -17,6 +17,7 @@ class ParseResult:
     rows: list[dict[str, str]]
     columns: list[str]
     total_rows: int
+    file_size_bytes: int
     detected_encoding: str
     detected_format: str
 
@@ -79,6 +80,7 @@ def _parse_csv_bytes(raw_bytes: bytes, *, sample_only: bool, sample_rows: int) -
         rows=rows,
         columns=columns,
         total_rows=total_rows,
+        file_size_bytes=len(raw_bytes),
         detected_encoding=encoding,
         detected_format="csv",
     )
@@ -89,51 +91,53 @@ def _parse_excel_bytes(raw_bytes: bytes, *, sample_only: bool, sample_rows: int)
     from openpyxl import load_workbook
 
     wb = load_workbook(io.BytesIO(raw_bytes), data_only=True, read_only=True)
-    ws = wb.active
-    if ws is None:
-        raise AppException(
-            code="VOC_EMPTY_FILE",
-            message="Excel 文件没有活动工作表",
-            status_code=400,
-        )
-
-    row_iter = ws.iter_rows(values_only=True)
-    # 第一行作为表头
     try:
-        header_row = next(row_iter)
-    except StopIteration as e:
-        raise AppException(
-            code="VOC_EMPTY_FILE",
-            message="Excel 文件为空",
-            status_code=400,
-        ) from e
+        ws = wb.active
+        if ws is None:
+            raise AppException(
+                code="VOC_EMPTY_FILE",
+                message="Excel 文件没有活动工作表",
+                status_code=400,
+            )
 
-    columns = [str(c).strip() if c is not None else f"column_{i}" for i, c in enumerate(header_row)]
-    if not any(c for c in columns if not c.startswith("column_")):
-        raise AppException(
-            code="VOC_EMPTY_FILE",
-            message="Excel 文件表头为空",
-            status_code=400,
-        )
+        row_iter = ws.iter_rows(values_only=True)
+        # 第一行作为表头
+        try:
+            header_row = next(row_iter)
+        except StopIteration as e:
+            raise AppException(
+                code="VOC_EMPTY_FILE",
+                message="Excel 文件为空",
+                status_code=400,
+            ) from e
 
-    rows: list[dict[str, str]] = []
-    total_rows = 0
-    for row_values in row_iter:
-        total_rows += 1
-        if sample_only and len(rows) >= sample_rows:
-            continue  # 继续计数但不添加行
-        row_dict = {}
-        for j, val in enumerate(row_values):
-            if j < len(columns):
-                row_dict[columns[j]] = str(val) if val is not None else ""
-        rows.append(row_dict)
+        columns = [str(c).strip() if c is not None else f"column_{i}" for i, c in enumerate(header_row)]
+        if not any(c for c in columns if not c.startswith("column_")):
+            raise AppException(
+                code="VOC_EMPTY_FILE",
+                message="Excel 文件表头为空",
+                status_code=400,
+            )
 
-    wb.close()
+        rows: list[dict[str, str]] = []
+        total_rows = 0
+        for row_values in row_iter:
+            total_rows += 1
+            if sample_only and len(rows) >= sample_rows:
+                continue  # 继续计数但不添加行
+            row_dict = {}
+            for j, val in enumerate(row_values):
+                if j < len(columns):
+                    row_dict[columns[j]] = str(val) if val is not None else ""
+            rows.append(row_dict)
+    finally:
+        wb.close()
 
     return ParseResult(
         rows=rows,
         columns=columns,
         total_rows=total_rows,
+        file_size_bytes=len(raw_bytes),
         detected_encoding="utf-8",
         detected_format="excel",
     )
@@ -141,7 +145,6 @@ def _parse_excel_bytes(raw_bytes: bytes, *, sample_only: bool, sample_rows: int)
 
 _ALLOWED_EXTENSIONS = {
     ".csv": "csv",
-    ".xls": "excel",
     ".xlsx": "excel",
 }
 
@@ -172,7 +175,7 @@ async def parse_file(
     if not file_type:
         raise AppException(
             code="VOC_INVALID_FILE_FORMAT",
-            message=f"不支持的文件格式 '{ext}'，仅支持 .csv / .xls / .xlsx",
+            message=f"不支持的文件格式 '{ext}'，仅支持 .csv / .xlsx",
             status_code=400,
         )
 

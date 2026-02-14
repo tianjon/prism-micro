@@ -1,5 +1,6 @@
 """数据导入 API 路由。"""
 
+import json
 from uuid import UUID
 
 import structlog
@@ -8,12 +9,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from prism_shared.exceptions import AppException
 from prism_shared.schemas import ApiResponse
-from voc_service.api.deps import _UserRecord, get_current_user, get_db, get_llm_client, get_settings
+from voc_service.api.deps import UserRecord, get_current_user, get_db, get_llm_client, get_settings
 from voc_service.api.schemas.import_schemas import (
     BatchProgress,
     BatchStatusResponse,
     ColumnMapping,
-    ConfirmMappingRequest,
     ConfirmMappingResponse,
     FileInfo,
     ImportResponse,
@@ -23,6 +23,7 @@ from voc_service.core import import_service, schema_mapping_service
 from voc_service.core.config import VocServiceSettings
 from voc_service.core.file_parser import parse_file
 from voc_service.core.llm_client import LLMClient
+from voc_service.models.enums import BatchStatus
 
 logger = structlog.get_logger()
 
@@ -38,7 +39,7 @@ async def upload_file(
     db: AsyncSession = Depends(get_db),
     settings: VocServiceSettings = Depends(get_settings),
     llm_client: LLMClient = Depends(get_llm_client),
-    current_user: _UserRecord = Depends(get_current_user),
+    current_user: UserRecord = Depends(get_current_user),
 ):
     """
     上传文件，触发解析 + LLM Schema 映射。
@@ -62,12 +63,12 @@ async def upload_file(
     if not source:
         source = sample_result.detected_format
 
-    # 创建批次
+    # 创建批次（使用解析后的实际字节数）
     batch = await import_service.create_batch(
         db,
         source=source,
         file_name=file.filename or "unknown",
-        file_size_bytes=file.size or 0,
+        file_size_bytes=sample_result.file_size_bytes,
         total_rows=sample_result.total_rows,
     )
 
@@ -89,7 +90,7 @@ async def upload_file(
 
     file_info = FileInfo(
         file_name=file.filename or "unknown",
-        file_size_bytes=file.size or 0,
+        file_size_bytes=sample_result.file_size_bytes,
         total_rows=sample_result.total_rows,
         detected_encoding=sample_result.detected_encoding,
         detected_format=sample_result.detected_format,
@@ -97,7 +98,7 @@ async def upload_file(
 
     if mapping_result.needs_confirmation:
         # 需要用户确认映射
-        batch.status = "mapping"
+        batch.status = BatchStatus.MAPPING
         await db.flush()
 
         return ApiResponse(
@@ -119,10 +120,9 @@ async def upload_file(
         sample_only=False,
     )
 
-    # 在后台任务中执行导入
+    # Phase 1 简化实现：在请求中直接导入
     chunk_size = settings.upload_chunk_size
 
-    # Phase 1 简化实现：在请求中直接导入
     await import_service.execute_import(
         db,
         batch=batch,
@@ -150,7 +150,7 @@ async def upload_file(
 async def get_batch_status(
     batch_id: UUID,
     db: AsyncSession = Depends(get_db),
-    _current_user: _UserRecord = Depends(get_current_user),
+    _current_user: UserRecord = Depends(get_current_user),
 ):
     """查询导入批次状态。"""
     batch = await import_service.get_batch_with_progress(db, batch_id=batch_id)
@@ -177,7 +177,7 @@ async def get_batch_status(
 async def get_mapping_preview(
     batch_id: UUID,
     db: AsyncSession = Depends(get_db),
-    _current_user: _UserRecord = Depends(get_current_user),
+    _current_user: UserRecord = Depends(get_current_user),
 ):
     """获取映射预览。"""
     batch = await import_service.get_batch_with_progress(db, batch_id=batch_id)
@@ -243,24 +243,37 @@ async def get_mapping_preview(
 @router.post("/{batch_id}/confirm-mapping", response_model=ApiResponse[ConfirmMappingResponse])
 async def confirm_mapping(
     batch_id: UUID,
-    body: ConfirmMappingRequest,
     file: UploadFile = File(...),
+    confirmed_mappings: str = Form(..., description="映射 JSON 字符串"),
+    save_as_template: bool = Form(default=False),
+    template_name: str = Form(default=""),
     db: AsyncSession = Depends(get_db),
     settings: VocServiceSettings = Depends(get_settings),
-    _current_user: _UserRecord = Depends(get_current_user),
+    _current_user: UserRecord = Depends(get_current_user),
 ):
     """
     确认映射并开始导入。
 
     需要重新上传文件（因为采样阶段未保存完整数据）。
+    confirmed_mappings 以 JSON 字符串形式通过 Form 传递。
     """
+    # 解析 confirmed_mappings JSON 字符串
+    try:
+        mappings_dict = json.loads(confirmed_mappings)
+    except json.JSONDecodeError as e:
+        raise AppException(
+            code="VALIDATION_ERROR",
+            message=f"confirmed_mappings 不是合法的 JSON：{e}",
+            status_code=400,
+        ) from e
+
     # 确认映射
     mapping = await schema_mapping_service.confirm_mapping(
         db,
         batch_id=batch_id,
-        confirmed_mappings=body.confirmed_mappings,
-        save_as_template=body.save_as_template,
-        template_name=body.template_name,
+        confirmed_mappings=mappings_dict,
+        save_as_template=save_as_template,
+        template_name=template_name or None,
     )
 
     # 完整解析文件
@@ -289,6 +302,6 @@ async def confirm_mapping(
             status=batch.status,
             message=f"导入完成：新增 {batch.new_count} 条，重复 {batch.duplicate_count} 条",
             mapping_id=mapping.id,
-            template_saved=body.save_as_template,
+            template_saved=save_as_template,
         )
     )

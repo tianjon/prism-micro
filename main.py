@@ -21,6 +21,7 @@ from prism_shared.middleware import RequestIdMiddleware
 from prism_shared.schemas import ApiResponse
 from user_service.api.router import router as user_router
 from voc_service.api.router import api_router as voc_router
+from voc_service.core.config import VocServiceSettings
 
 
 @asynccontextmanager
@@ -34,9 +35,10 @@ async def lifespan(app: FastAPI):
 
 def create_app() -> FastAPI:
     """创建统一开发服务器。"""
-    settings = LLMServiceSettings()
+    llm_settings = LLMServiceSettings()
+    voc_settings = VocServiceSettings()
 
-    configure_logging(log_level=settings.log_level, json_output=False)
+    configure_logging(log_level=llm_settings.log_level, json_output=False)
 
     app = FastAPI(
         title="Prism Dev Server",
@@ -45,11 +47,11 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
-    # CORS（开发模式允许所有来源，支持局域网访问）
+    # CORS（开发模式，Bearer token 认证不需要 credentials）
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
-        allow_credentials=True,
+        allow_credentials=False,
         allow_methods=["*"],
         allow_headers=["*"],
     )
@@ -62,13 +64,15 @@ def create_app() -> FastAPI:
 
     # 数据库引擎（所有服务共用同一个连接池）
     pool_config = PoolConfig(
-        pool_size=settings.db_pool_size,
-        max_overflow=settings.db_max_overflow,
+        pool_size=llm_settings.db_pool_size,
+        max_overflow=llm_settings.db_max_overflow,
     )
-    engine = create_engine(settings.database_url, pool_config)
+    engine = create_engine(llm_settings.database_url, pool_config)
     app.state.engine = engine
     app.state.session_factory = create_session_factory(engine)
-    app.state.settings = settings
+    # 各服务使用独立的 Settings 实例
+    app.state.settings = llm_settings  # llm-service / user-service 使用
+    app.state.voc_settings = voc_settings  # voc-service 使用
 
     # 挂载各服务路由
     app.include_router(user_router)  # /api/auth/*

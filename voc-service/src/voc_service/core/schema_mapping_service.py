@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import re
 from dataclasses import dataclass
 from uuid import UUID
 
@@ -153,14 +154,10 @@ def _parse_llm_mapping_response(llm_response: dict) -> dict:
 
     # 尝试从 content 中提取 JSON（可能包含 markdown 代码块）
     json_str = content.strip()
-    if json_str.startswith("```"):
-        lines = json_str.split("\n")
-        # 去掉首尾的 ``` 行
-        start = 1
-        end = len(lines) - 1
-        if lines[-1].strip() == "```":
-            end = len(lines) - 1
-        json_str = "\n".join(lines[start:end])
+    # 用正则提取 ```...``` 代码块中的 JSON（支持 ```json 等语言标签）
+    fence_match = re.search(r"```(?:\w*)\s*\n(.*?)```", json_str, re.DOTALL)
+    if fence_match:
+        json_str = fence_match.group(1).strip()
 
     try:
         mapping_data = json.loads(json_str)
@@ -221,7 +218,9 @@ async def confirm_mapping(
             status_code=404,
         )
 
-    if batch.status != "mapping":
+    from voc_service.models.enums import BatchStatus
+
+    if batch.status != BatchStatus.MAPPING:
         raise AppException(
             code="VOC_INVALID_BATCH_STATUS",
             message=f"批次状态为 {batch.status}，无法确认映射（需要 mapping 状态）",
@@ -235,6 +234,15 @@ async def confirm_mapping(
             status_code=404,
         )
 
+    # 先验证 raw_text，再修改映射
+    has_raw_text = any(v.get("target") == "raw_text" for v in confirmed_mappings.values())
+    if not has_raw_text:
+        raise AppException(
+            code="VOC_NO_TEXT_COLUMN",
+            message="确认的映射中缺少 raw_text 目标字段",
+            status_code=422,
+        )
+
     stmt = select(SchemaMapping).where(SchemaMapping.id == batch.mapping_id)
     result = await db.execute(stmt)
     mapping = result.scalar_one_or_none()
@@ -245,20 +253,11 @@ async def confirm_mapping(
             status_code=404,
         )
 
-    # 更新映射内容
+    # 验证通过后再更新映射内容
     mapping.column_mappings = confirmed_mappings
     mapping.created_by = "llm_user_confirmed"
     if save_as_template and template_name:
         mapping.name = template_name
-
-    # 验证 raw_text
-    has_raw_text = any(v.get("target") == "raw_text" for v in confirmed_mappings.values())
-    if not has_raw_text:
-        raise AppException(
-            code="VOC_NO_TEXT_COLUMN",
-            message="确认的映射中缺少 raw_text 目标字段",
-            status_code=422,
-        )
 
     await db.flush()
     return mapping
