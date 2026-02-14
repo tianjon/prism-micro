@@ -7,6 +7,10 @@ dependencies = [
     "prism-shared",
     "pgvector>=0.3",
     "alembic>=1.10",
+    "openpyxl>=3.1",
+    "python-multipart>=0.0.9",
+    "chardet>=5.0",
+    "httpx>=0.27",
 ]
 
 [build-system]
