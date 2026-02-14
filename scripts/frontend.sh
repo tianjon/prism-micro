@@ -27,6 +27,14 @@ _is_running() {
     return 1
 }
 
+_get_lan_ip() {
+    if command -v ipconfig &>/dev/null && [ "$(uname)" = "Darwin" ]; then
+        ipconfig getifaddr en0 2>/dev/null || true
+    else
+        hostname -I 2>/dev/null | awk '{print $1}' || true
+    fi
+}
+
 _ensure_deps() {
     if [ ! -d "$WEB_DIR/node_modules" ]; then
         _info "安装前端依赖..."
@@ -54,8 +62,8 @@ do_start() {
     # 幂等：确保依赖已安装
     _ensure_deps
 
-    # 启动 Vite dev server
-    _info "启动前端开发服务器 (localhost:$PORT)..."
+    # 启动 Vite dev server（host: true 已在 vite.config.ts 中配置）
+    _info "启动前端开发服务器 (0.0.0.0:$PORT)..."
     cd "$WEB_DIR"
     nohup npm run dev > "$LOG_FILE" 2>&1 &
 
@@ -67,7 +75,12 @@ do_start() {
     while [ $waited -lt $max_wait ]; do
         if curl -sf "http://localhost:$PORT" > /dev/null 2>&1; then
             _info "前端已启动（PID: $pid, 端口: ${PORT}）"
-            _info "访问地址: http://localhost:$PORT"
+            _info "本地访问: http://localhost:$PORT"
+            local lan_ip
+            lan_ip=$(_get_lan_ip)
+            if [ -n "$lan_ip" ]; then
+                _info "局域网访问: http://${lan_ip}:$PORT"
+            fi
             _info "日志文件: $LOG_FILE"
             return 0
         fi

@@ -15,6 +15,15 @@ PORT=8601
 _info()  { echo "  [backend] $*"; }
 _error() { echo "  [backend] 错误: $*" >&2; }
 
+_get_lan_ip() {
+    # 获取局域网 IP（macOS 和 Linux 兼容）
+    if command -v ipconfig &>/dev/null && [ "$(uname)" = "Darwin" ]; then
+        ipconfig getifaddr en0 2>/dev/null || true
+    else
+        hostname -I 2>/dev/null | awk '{print $1}' || true
+    fi
+}
+
 _is_running() {
     if [ -f "$PID_FILE" ]; then
         local pid
@@ -133,6 +142,7 @@ do_start() {
         --reload-dir shared/src \
         --reload-dir user-service/src \
         --reload-dir llm-service/src \
+        --reload-dir voc-service/src \
         > "$LOG_FILE" 2>&1 &
 
     local pid=$!
@@ -143,7 +153,12 @@ do_start() {
     while [ $waited -lt $max_wait ]; do
         if curl -sf "http://localhost:$PORT/health" > /dev/null 2>&1; then
             _info "后端已启动（PID: $pid, 端口: ${PORT}）"
-            _info "API 文档: http://localhost:$PORT/docs"
+            _info "本地访问: http://localhost:$PORT/docs"
+            local lan_ip
+            lan_ip=$(_get_lan_ip)
+            if [ -n "$lan_ip" ]; then
+                _info "局域网访问: http://${lan_ip}:$PORT/docs"
+            fi
             _info "日志文件: $LOG_FILE"
             return 0
         fi

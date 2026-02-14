@@ -1,6 +1,6 @@
 """Prism 统一开发服务器。
 
-本地开发时将 user-service 和 llm-service 的路由挂载到同一个 FastAPI 实例，
+本地开发时将 user-service、llm-service、voc-service 的路由挂载到同一个 FastAPI 实例，
 前端通过 Vite 代理 /api/* 到此端口（默认 8601）。
 
 启动方式：
@@ -20,6 +20,7 @@ from prism_shared.logging import configure_logging
 from prism_shared.middleware import RequestIdMiddleware
 from prism_shared.schemas import ApiResponse
 from user_service.api.router import router as user_router
+from voc_service.api.router import api_router as voc_router
 
 
 @asynccontextmanager
@@ -39,15 +40,15 @@ def create_app() -> FastAPI:
 
     app = FastAPI(
         title="Prism Dev Server",
-        description="统一开发服务器（user-service + llm-service）",
+        description="统一开发服务器（user-service + llm-service + voc-service）",
         version="0.1.0",
         lifespan=lifespan,
     )
 
-    # CORS（开发模式允许前端本地端口）
+    # CORS（开发模式允许所有来源，支持局域网访问）
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+        allow_origins=["*"],
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -71,7 +72,8 @@ def create_app() -> FastAPI:
 
     # 挂载各服务路由
     app.include_router(user_router)  # /api/auth/*
-    app.include_router(llm_router)   # /api/llm/*
+    app.include_router(llm_router)  # /api/llm/*
+    app.include_router(voc_router)  # /api/voc/*
 
     # 健康检查
     @app.get("/health", tags=["health"])
