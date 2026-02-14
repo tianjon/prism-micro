@@ -39,3 +39,11 @@ class VocServiceSettings(BaseAppSettings):
         default=0.5,
         description="拒绝映射的置信度阈值",
     )
+
+    # --- 管线 ---
+    pipeline_batch_size: int = Field(default=20, description="每轮取多少条 Voice 处理")
+    pipeline_max_retries: int = Field(default=2, description="失败重试次数")
+    stage1_temperature: float = Field(default=0.5, description="Stage 1 reasoning 温度")
+    stage2_temperature: float = Field(default=0.5, description="Stage 2 reasoning 温度")
+    normalize_temperature: float = Field(default=0.2, description="标准化 fast 温度")
+    guard_l2_temperature: float = Field(default=0.2, description="L2 检查 fast 温度")

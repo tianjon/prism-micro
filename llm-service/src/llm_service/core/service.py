@@ -875,6 +875,7 @@ async def invoke_slot(
     *,
     messages: list[dict],
     max_tokens: int | None = None,
+    temperature: float | None = None,
     encryption_key: str,
 ) -> dict:
     """
@@ -907,6 +908,7 @@ async def invoke_slot(
             model_id=slot.primary_model_id,
             messages=messages,
             max_tokens=max_tokens,
+            temperature=temperature,
             encryption_key=encryption_key,
         )
         failover_trace.append(
@@ -958,6 +960,7 @@ async def invoke_slot(
                 model_id=fb_model_id,
                 messages=messages,
                 max_tokens=max_tokens,
+                temperature=temperature,
                 encryption_key=encryption_key,
             )
             failover_trace.append(

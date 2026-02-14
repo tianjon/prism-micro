@@ -1,8 +1,6 @@
 """Schema 映射服务：模板匹配 + LLM 映射生成。"""
 
 import hashlib
-import json
-import re
 from dataclasses import dataclass
 from uuid import UUID
 
@@ -12,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from prism_shared.exceptions import AppException
 from voc_service.core.llm_client import LLMClient
+from voc_service.core.llm_response import extract_json_from_llm_response
 from voc_service.models.schema_mapping import SchemaMapping
 from voc_service.prompts.schema_mapping import build_schema_mapping_messages
 
@@ -134,40 +133,7 @@ async def find_or_create_mapping(
 
 def _parse_llm_mapping_response(llm_response: dict) -> dict:
     """从 llm-service 响应中解析映射结果 JSON。"""
-    try:
-        # llm-service 槽位调用响应格式：data.result.content
-        data = llm_response.get("data", {})
-        content = data.get("result", {}).get("content", "")
-    except (AttributeError, TypeError) as e:
-        raise AppException(
-            code="VOC_MAPPING_FAILED",
-            message="LLM 响应格式异常",
-            status_code=422,
-        ) from e
-
-    if not content:
-        raise AppException(
-            code="VOC_MAPPING_FAILED",
-            message="LLM 未返回映射结果",
-            status_code=422,
-        )
-
-    # 尝试从 content 中提取 JSON（可能包含 markdown 代码块）
-    json_str = content.strip()
-    # 用正则提取 ```...``` 代码块中的 JSON（支持 ```json 等语言标签）
-    fence_match = re.search(r"```(?:\w*)\s*\n(.*?)```", json_str, re.DOTALL)
-    if fence_match:
-        json_str = fence_match.group(1).strip()
-
-    try:
-        mapping_data = json.loads(json_str)
-    except json.JSONDecodeError as e:
-        logger.error("LLM 映射结果 JSON 解析失败", content=content[:500], error=str(e))
-        raise AppException(
-            code="VOC_MAPPING_FAILED",
-            message=f"LLM 映射结果 JSON 解析失败：{e}",
-            status_code=422,
-        ) from e
+    mapping_data = extract_json_from_llm_response(llm_response)
 
     # 验证必要字段
     if "mappings" not in mapping_data:

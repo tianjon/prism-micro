@@ -106,6 +106,7 @@ async def invoke_slot(
         slot_type,
         messages=messages,
         max_tokens=body.max_tokens,
+        temperature=body.temperature,
         encryption_key=encryption_key,
     )
 

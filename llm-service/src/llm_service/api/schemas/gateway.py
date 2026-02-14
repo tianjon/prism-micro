@@ -121,6 +121,7 @@ class SlotInvokeRequest(BaseModel):
 
     messages: list[MessageItem] = Field(min_length=1, description="消息数组")
     max_tokens: int | None = Field(default=None, description="最大生成 token 数")
+    temperature: float | None = Field(default=None, ge=0, le=2, description="采样温度")
 
 
 class FailoverTraceItem(BaseModel):
