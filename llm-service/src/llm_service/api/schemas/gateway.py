@@ -149,3 +149,37 @@ class SlotInvokeResponse(BaseModel):
 
     result: CompletionResponse
     routing: RoutingInfo
+
+
+# ===========================
+# 槽位级 Embedding / Rerank 调用
+# ===========================
+
+
+class SlotEmbeddingRequest(BaseModel):
+    """基于槽位的 Embedding 请求（无需指定 provider/model）。"""
+
+    input: str | list[str] = Field(description="待向量化文本（单个或数组）")
+    dimensions: int | None = Field(default=None, description="输出向量维度")
+
+
+class SlotRerankRequest(BaseModel):
+    """基于槽位的 Rerank 请求（无需指定 provider/model）。"""
+
+    query: str = Field(description="查询文本")
+    documents: list[str] = Field(min_length=1, description="候选文档数组")
+    top_n: int | None = Field(default=None, ge=1, description="返回前 N 个结果")
+
+
+class SlotEmbeddingResponse(BaseModel):
+    """槽位 Embedding 调用响应。"""
+
+    result: EmbeddingResponse
+    routing: RoutingInfo
+
+
+class SlotRerankResponse(BaseModel):
+    """槽位 Rerank 调用响应。"""
+
+    result: RerankResponse
+    routing: RoutingInfo

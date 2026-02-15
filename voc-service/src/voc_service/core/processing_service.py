@@ -11,6 +11,7 @@ from voc_service.core.llm_client import LLMClient
 from voc_service.models.voice import Voice
 from voc_service.pipeline.stage1_splitting import SemanticSplitter
 from voc_service.pipeline.stage2_tagging import TagEmergenceProcessor
+from voc_service.pipeline.stage3_embedding import EmbeddingProcessor
 
 logger = structlog.get_logger(__name__)
 
@@ -76,6 +77,18 @@ async def process_pending_voices(
             tagger = TagEmergenceProcessor(llm_client, db, settings)
             await tagger.tag(units)
             await db.flush()
+
+            # Stage 3: 向量化
+            embedder = EmbeddingProcessor(llm_client, settings)
+            embedded = await embedder.embed(units)
+            await db.flush()
+
+            logger.info(
+                "Stage 3 向量化完成",
+                voice_id=str(voice.id),
+                embedded=embedded,
+                total=len(units),
+            )
 
             # 标记为完成
             voice.processed_status = "completed"

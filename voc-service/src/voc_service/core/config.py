@@ -47,3 +47,9 @@ class VocServiceSettings(BaseAppSettings):
     stage2_temperature: float = Field(default=0.5, description="Stage 2 reasoning 温度")
     normalize_temperature: float = Field(default=0.2, description="标准化 fast 温度")
     guard_l2_temperature: float = Field(default=0.2, description="L2 检查 fast 温度")
+
+    # --- 搜索 ---
+    embedding_batch_size: int = Field(default=20, description="embedding 批次大小")
+    search_candidate_multiplier: int = Field(default=2, description="搜索候选倍数（rerank 时取 top_k * multiplier）")
+    confidence_high_threshold: float = Field(default=0.8, description="高置信度阈值")
+    confidence_medium_threshold: float = Field(default=0.6, description="中置信度阈值")

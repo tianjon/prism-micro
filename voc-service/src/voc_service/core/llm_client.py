@@ -78,3 +78,108 @@ class LLMClient:
                 message=f"llm-service 返回错误 {e.response.status_code}",
                 status_code=503,
             ) from e
+
+    async def embedding(
+        self,
+        *,
+        texts: list[str],
+        dimensions: int | None = None,
+        api_key: str | None = None,
+    ) -> list[list[float]]:
+        """调用 slot-based embedding 端点，返回向量列表。"""
+        url = f"{self._base_url}/api/llm/slots/embedding/invoke"
+        payload: dict = {"input": texts}
+        if dimensions is not None:
+            payload["dimensions"] = dimensions
+
+        headers = {}
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
+
+        try:
+            async with httpx.AsyncClient(timeout=self._timeout) as client:
+                resp = await client.post(url, json=payload, headers=headers)
+                resp.raise_for_status()
+                body = resp.json()
+                return [item["values"] for item in body["data"]["result"]["embeddings"]]
+        except httpx.ConnectError as e:
+            logger.error("llm-service embedding 连接失败", url=url, error=str(e))
+            raise AppException(
+                code="VOC_LLM_UNAVAILABLE",
+                message=f"llm-service 不可用：{e}",
+                status_code=503,
+            ) from e
+        except httpx.TimeoutException as e:
+            logger.error("llm-service embedding 调用超时", url=url, error=str(e))
+            raise AppException(
+                code="VOC_LLM_TIMEOUT",
+                message=f"llm-service 调用超时：{e}",
+                status_code=504,
+            ) from e
+        except httpx.HTTPStatusError as e:
+            logger.error(
+                "llm-service embedding 返回错误",
+                url=url,
+                status_code=e.response.status_code,
+                body=e.response.text[:500],
+            )
+            raise AppException(
+                code="VOC_LLM_UNAVAILABLE",
+                message=f"llm-service 返回错误 {e.response.status_code}",
+                status_code=503,
+            ) from e
+
+    async def rerank(
+        self,
+        *,
+        query: str,
+        documents: list[str],
+        top_n: int | None = None,
+        api_key: str | None = None,
+    ) -> list[dict]:
+        """调用 slot-based rerank 端点，返回排序结果。
+
+        Returns:
+            [{"index": int, "document": str, "relevance_score": float}, ...]
+        """
+        url = f"{self._base_url}/api/llm/slots/rerank/invoke"
+        payload: dict = {"query": query, "documents": documents}
+        if top_n is not None:
+            payload["top_n"] = top_n
+
+        headers = {}
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
+
+        try:
+            async with httpx.AsyncClient(timeout=self._timeout) as client:
+                resp = await client.post(url, json=payload, headers=headers)
+                resp.raise_for_status()
+                body = resp.json()
+                return body["data"]["result"]["results"]
+        except httpx.ConnectError as e:
+            logger.error("llm-service rerank 连接失败", url=url, error=str(e))
+            raise AppException(
+                code="VOC_LLM_UNAVAILABLE",
+                message=f"llm-service 不可用：{e}",
+                status_code=503,
+            ) from e
+        except httpx.TimeoutException as e:
+            logger.error("llm-service rerank 调用超时", url=url, error=str(e))
+            raise AppException(
+                code="VOC_LLM_TIMEOUT",
+                message=f"llm-service 调用超时：{e}",
+                status_code=504,
+            ) from e
+        except httpx.HTTPStatusError as e:
+            logger.error(
+                "llm-service rerank 返回错误",
+                url=url,
+                status_code=e.response.status_code,
+                body=e.response.text[:500],
+            )
+            raise AppException(
+                code="VOC_LLM_UNAVAILABLE",
+                message=f"llm-service 返回错误 {e.response.status_code}",
+                status_code=503,
+            ) from e

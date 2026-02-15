@@ -1006,3 +1006,277 @@ async def invoke_slot(
         status_code=503,
         details={"failover_trace": failover_trace},
     )
+
+
+async def invoke_embedding_slot(
+    db: AsyncSession,
+    *,
+    input_texts: str | list[str],
+    encryption_key: str,
+    dimensions: int | None = None,
+) -> dict:
+    """
+    基于 embedding 槽位调用向量化（含故障转移）。
+    自动从 slot 配置获取 provider + model，调用方无需关心底层配置。
+    """
+    slot = await get_slot(db, SlotType.EMBEDDING)
+    if slot is None or not slot.is_enabled:
+        raise AppException(
+            code=LLMErrorCode.SLOT_NOT_CONFIGURED,
+            message="槽位 'embedding' 未配置或已禁用",
+            status_code=503,
+        )
+
+    primary_provider = await db.get(Provider, slot.primary_provider_id)
+    if primary_provider is None:
+        raise AppException(
+            code=LLMErrorCode.SLOT_NOT_CONFIGURED,
+            message="槽位 'embedding' 的主 Provider 不存在",
+            status_code=503,
+        )
+
+    failover_trace: list[dict] = []
+
+    # 尝试主模型
+    try:
+        result = await call_embedding(
+            db,
+            provider_id=str(slot.primary_provider_id),
+            model_id=slot.primary_model_id,
+            input_texts=input_texts,
+            dimensions=dimensions,
+            encryption_key=encryption_key,
+        )
+        failover_trace.append(
+            {
+                "provider_name": primary_provider.name,
+                "model_id": slot.primary_model_id,
+                "success": True,
+                "error": None,
+                "latency_ms": result["latency_ms"],
+            }
+        )
+        return {
+            "result": result,
+            "routing": {
+                "provider_name": primary_provider.name,
+                "model_id": slot.primary_model_id,
+                "slot_type": SlotType.EMBEDDING.value,
+                "used_resource_pool": False,
+                "failover_trace": failover_trace,
+            },
+        }
+    except AppException as e:
+        failover_trace.append(
+            {
+                "provider_name": primary_provider.name,
+                "model_id": slot.primary_model_id,
+                "success": False,
+                "error": e.message,
+                "latency_ms": None,
+            }
+        )
+        logger.warning(
+            "Embedding 主模型调用失败，尝试资源池故障转移",
+            error=e.message,
+        )
+
+    # 资源池故障转移
+    for item in slot.fallback_chain or []:
+        fb_provider_id = item.get("provider_id")
+        fb_model_id = item.get("model_id")
+        fb_provider = await db.get(Provider, fb_provider_id)
+        fb_provider_name = fb_provider.name if fb_provider else "未知"
+
+        try:
+            result = await call_embedding(
+                db,
+                provider_id=str(fb_provider_id),
+                model_id=fb_model_id,
+                input_texts=input_texts,
+                dimensions=dimensions,
+                encryption_key=encryption_key,
+            )
+            failover_trace.append(
+                {
+                    "provider_name": fb_provider_name,
+                    "model_id": fb_model_id,
+                    "success": True,
+                    "error": None,
+                    "latency_ms": result["latency_ms"],
+                }
+            )
+            return {
+                "result": result,
+                "routing": {
+                    "provider_name": fb_provider_name,
+                    "model_id": fb_model_id,
+                    "slot_type": SlotType.EMBEDDING.value,
+                    "used_resource_pool": True,
+                    "failover_trace": failover_trace,
+                },
+            }
+        except AppException as e:
+            failover_trace.append(
+                {
+                    "provider_name": fb_provider_name,
+                    "model_id": fb_model_id,
+                    "success": False,
+                    "error": e.message,
+                    "latency_ms": None,
+                }
+            )
+            logger.warning(
+                "Embedding 资源池备选模型调用失败",
+                provider=fb_provider_name,
+                model=fb_model_id,
+                error=e.message,
+            )
+
+    raise AppException(
+        code=LLMErrorCode.ALL_MODELS_FAILED,
+        message="所有 Embedding 模型（主模型 + 资源池）均调用失败",
+        status_code=503,
+        details={"failover_trace": failover_trace},
+    )
+
+
+async def invoke_rerank_slot(
+    db: AsyncSession,
+    *,
+    query: str,
+    documents: list[str],
+    encryption_key: str,
+    top_n: int | None = None,
+) -> dict:
+    """
+    基于 rerank 槽位调用重排序（含故障转移）。
+    自动从 slot 配置获取 provider + model，调用方无需关心底层配置。
+    """
+    slot = await get_slot(db, SlotType.RERANK)
+    if slot is None or not slot.is_enabled:
+        raise AppException(
+            code=LLMErrorCode.SLOT_NOT_CONFIGURED,
+            message="槽位 'rerank' 未配置或已禁用",
+            status_code=503,
+        )
+
+    primary_provider = await db.get(Provider, slot.primary_provider_id)
+    if primary_provider is None:
+        raise AppException(
+            code=LLMErrorCode.SLOT_NOT_CONFIGURED,
+            message="槽位 'rerank' 的主 Provider 不存在",
+            status_code=503,
+        )
+
+    failover_trace: list[dict] = []
+
+    # 尝试主模型
+    try:
+        result = await call_rerank(
+            db,
+            provider_id=str(slot.primary_provider_id),
+            model_id=slot.primary_model_id,
+            query=query,
+            documents=documents,
+            encryption_key=encryption_key,
+        )
+        # 可选 top_n 截断
+        if top_n is not None:
+            result["results"] = result["results"][:top_n]
+
+        failover_trace.append(
+            {
+                "provider_name": primary_provider.name,
+                "model_id": slot.primary_model_id,
+                "success": True,
+                "error": None,
+                "latency_ms": result["latency_ms"],
+            }
+        )
+        return {
+            "result": result,
+            "routing": {
+                "provider_name": primary_provider.name,
+                "model_id": slot.primary_model_id,
+                "slot_type": SlotType.RERANK.value,
+                "used_resource_pool": False,
+                "failover_trace": failover_trace,
+            },
+        }
+    except AppException as e:
+        failover_trace.append(
+            {
+                "provider_name": primary_provider.name,
+                "model_id": slot.primary_model_id,
+                "success": False,
+                "error": e.message,
+                "latency_ms": None,
+            }
+        )
+        logger.warning(
+            "Rerank 主模型调用失败，尝试资源池故障转移",
+            error=e.message,
+        )
+
+    # 资源池故障转移
+    for item in slot.fallback_chain or []:
+        fb_provider_id = item.get("provider_id")
+        fb_model_id = item.get("model_id")
+        fb_provider = await db.get(Provider, fb_provider_id)
+        fb_provider_name = fb_provider.name if fb_provider else "未知"
+
+        try:
+            result = await call_rerank(
+                db,
+                provider_id=str(fb_provider_id),
+                model_id=fb_model_id,
+                query=query,
+                documents=documents,
+                encryption_key=encryption_key,
+            )
+            if top_n is not None:
+                result["results"] = result["results"][:top_n]
+
+            failover_trace.append(
+                {
+                    "provider_name": fb_provider_name,
+                    "model_id": fb_model_id,
+                    "success": True,
+                    "error": None,
+                    "latency_ms": result["latency_ms"],
+                }
+            )
+            return {
+                "result": result,
+                "routing": {
+                    "provider_name": fb_provider_name,
+                    "model_id": fb_model_id,
+                    "slot_type": SlotType.RERANK.value,
+                    "used_resource_pool": True,
+                    "failover_trace": failover_trace,
+                },
+            }
+        except AppException as e:
+            failover_trace.append(
+                {
+                    "provider_name": fb_provider_name,
+                    "model_id": fb_model_id,
+                    "success": False,
+                    "error": e.message,
+                    "latency_ms": None,
+                }
+            )
+            logger.warning(
+                "Rerank 资源池备选模型调用失败",
+                provider=fb_provider_name,
+                model=fb_model_id,
+                error=e.message,
+            )
+
+    raise AppException(
+        code=LLMErrorCode.ALL_MODELS_FAILED,
+        message="所有 Rerank 模型（主模型 + 资源池）均调用失败",
+        status_code=503,
+        details={"failover_trace": failover_trace},
+    )
