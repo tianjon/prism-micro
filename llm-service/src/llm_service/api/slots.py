@@ -3,7 +3,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from llm_service.api.deps import get_db, get_encryption_key, require_admin
+from llm_service.api.deps import get_current_user, get_db, get_encryption_key, require_admin
 from llm_service.api.schemas.gateway import (
     CompletionResponse,
     EmbeddingItem,
@@ -102,11 +102,11 @@ async def configure_slot(
 async def invoke_slot(
     slot_type: SlotType,
     body: SlotInvokeRequest,
-    _admin=Depends(require_admin),
+    _user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     encryption_key: str = Depends(get_encryption_key),
 ):
-    """通过槽位调用推理（含资源池故障转移），需要管理员权限。"""
+    """通过槽位调用推理（含资源池故障转移）。"""
     messages = [{"role": m.role, "content": m.content} for m in body.messages]
 
     result = await service.invoke_slot(
@@ -143,11 +143,11 @@ async def invoke_slot(
 @router.post("/embedding/invoke", response_model=ApiResponse[SlotEmbeddingResponse])
 async def invoke_embedding_slot(
     body: SlotEmbeddingRequest,
-    _admin=Depends(require_admin),
+    _user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     encryption_key: str = Depends(get_encryption_key),
 ):
-    """通过 embedding 槽位调用向量化（含故障转移），需要管理员权限。"""
+    """通过 embedding 槽位调用向量化（含故障转移）。"""
     result = await service.invoke_embedding_slot(
         db,
         input_texts=body.input,
@@ -180,11 +180,11 @@ async def invoke_embedding_slot(
 @router.post("/rerank/invoke", response_model=ApiResponse[SlotRerankResponse])
 async def invoke_rerank_slot(
     body: SlotRerankRequest,
-    _admin=Depends(require_admin),
+    _user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     encryption_key: str = Depends(get_encryption_key),
 ):
-    """通过 rerank 槽位调用重排序（含故障转移），需要管理员权限。"""
+    """通过 rerank 槽位调用重排序（含故障转移）。"""
     result = await service.invoke_rerank_slot(
         db,
         query=body.query,

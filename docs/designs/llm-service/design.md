@@ -1554,14 +1554,14 @@ class LLMServiceSettings(BaseSettings):
     """llm-service 配置，从环境变量读取。"""
 
     # 数据库
-    database_url: str = "postgresql+asyncpg://prism:prism@localhost:5432/prism"
+    database_url: str = "postgresql+asyncpg://prism:prism@prism.test:5432/prism"
     db_pool_size: int = 10              # SQLAlchemy pool_size（弹性 L0）
     db_max_overflow: int = 20           # SQLAlchemy max_overflow（弹性 L0）
     db_pool_timeout: int = 30           # 连接等待超时（秒）
     db_pool_recycle: int = 3600         # 连接回收时间（秒）
 
     # Redis
-    redis_url: str = "redis://localhost:6379/0"
+    redis_url: str = "redis://prism.test:6379/0"
 
     # 加密
     api_key_encryption_key: str         # AES-256 密钥（base64 编码，32 字节）

@@ -26,10 +26,10 @@ class VocServiceSettings(BaseAppSettings):
 
     # --- LLM 映射 ---
     llm_service_base_url: str = Field(
-        default="http://localhost:8601",
+        default="http://prism.test:8601",
         description="llm-service 基础 URL",
     )
-    llm_service_timeout: int = Field(default=60, description="llm-service 调用超时（秒）")
+    llm_service_timeout: int = Field(default=180, description="llm-service 调用超时（秒）")
     mapping_sample_rows: int = Field(default=10, description="Schema 映射采样行数")
     mapping_confidence_auto: float = Field(
         default=0.8,

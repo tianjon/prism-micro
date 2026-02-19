@@ -18,7 +18,7 @@ from llm_service.models.provider import Provider
 from llm_service.models.slot import ModelSlot, SlotType
 from prism_shared.exceptions import AppException, NotFoundException
 
-logger = structlog.get_logger()
+logger = structlog.get_logger(__name__)
 
 
 # ===========================
@@ -536,7 +536,11 @@ async def _get_provider_with_key(
     encryption_key: str,
 ) -> tuple[Provider, str]:
     """获取 Provider 并解密 API Key。"""
-    provider = await db.get(Provider, uuid.UUID(provider_id))
+    try:
+        pid = uuid.UUID(provider_id)
+    except ValueError:
+        raise NotFoundException("Provider", provider_id)
+    provider = await db.get(Provider, pid)
     if provider is None:
         raise NotFoundException("Provider", provider_id)
     api_key = decrypt_api_key(provider.api_key_encrypted, encryption_key)

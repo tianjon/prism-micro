@@ -1256,7 +1256,7 @@ class LLMClient:
 
     def __init__(
         self,
-        base_url: str = "http://localhost:8601",
+        base_url: str = "http://prism.test:8601",
         timeout: float = 60.0,
         api_key: str | None = None,
     ) -> None:

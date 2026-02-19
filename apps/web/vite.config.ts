@@ -13,9 +13,10 @@ export default defineConfig({
   server: {
     host: true,
     port: 3000,
+    allowedHosts: ["prism.test"],
     proxy: {
       "/api": {
-        target: "http://localhost:8601",
+        target: "http://prism.test:8601",
         changeOrigin: true,
       },
     },

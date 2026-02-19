@@ -1249,13 +1249,13 @@ class VocServiceSettings(BaseSettings):
     debug: bool = False
 
     # === 数据库 ===
-    database_url: str = "postgresql+asyncpg://prism:prism@localhost:5432/prism"
+    database_url: str = "postgresql+asyncpg://prism:prism@prism.test:5432/prism"
     db_pool_size: int = 10
     db_max_overflow: int = 20
     db_schema: str = "voc"
 
     # === llm-service 连接 ===
-    llm_service_base_url: str = "http://localhost:8001"
+    llm_service_base_url: str = "http://prism.test:8001"
     llm_service_timeout_seconds: int = 60
     llm_service_retry_count: int = 3
 
@@ -3170,7 +3170,7 @@ def mock_llm_client() -> LLMClient:
 async def db_session():
     """测试数据库 session（使用事务回滚隔离）"""
     from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-    engine = create_async_engine("postgresql+asyncpg://prism:prism@localhost:5432/prism")
+    engine = create_async_engine("postgresql+asyncpg://prism:prism@prism.test:5432/prism")
     async with engine.begin() as conn:
         # 确保 voc schema 存在
         await conn.execute(text("CREATE SCHEMA IF NOT EXISTS voc"))

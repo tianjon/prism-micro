@@ -28,7 +28,7 @@ export function LoginForm({ onSubmit, isLoading, error }: LoginFormProps) {
     <form onSubmit={handleSubmit} className="space-y-5">
       {/* 邮箱输入 */}
       <div className="space-y-1.5">
-        <label className="block text-sm font-medium text-white/60">
+        <label htmlFor="login-email" className="block text-sm font-medium text-white/60">
           邮箱地址
         </label>
         <div className="relative">
@@ -37,6 +37,7 @@ export function LoginForm({ onSubmit, isLoading, error }: LoginFormProps) {
             className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/30"
           />
           <input
+            id="login-email"
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -50,7 +51,7 @@ export function LoginForm({ onSubmit, isLoading, error }: LoginFormProps) {
 
       {/* 密码输入 */}
       <div className="space-y-1.5">
-        <label className="block text-sm font-medium text-white/60">
+        <label htmlFor="login-password" className="block text-sm font-medium text-white/60">
           密码
         </label>
         <div className="relative">
@@ -59,6 +60,7 @@ export function LoginForm({ onSubmit, isLoading, error }: LoginFormProps) {
             className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/30"
           />
           <input
+            id="login-password"
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}

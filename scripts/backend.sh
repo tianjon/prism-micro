@@ -6,7 +6,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 PID_FILE="$PROJECT_DIR/.backend.pid"
-LOG_FILE="$PROJECT_DIR/.backend.log"
+LOG_DIR="$HOME/.prism/log/app"
 HOST="0.0.0.0"
 PORT=8601
 
@@ -132,7 +132,10 @@ do_start() {
     _run_migrations
     _seed_admin_user
 
-    # 启动 uvicorn
+    # 确保日志目录存在
+    mkdir -p "$LOG_DIR"
+
+    # 启动 uvicorn（日志已由 structlog 写入 $LOG_DIR/prism.log，stdout 仅输出控制台格式）
     _info "启动后端服务 ($HOST:$PORT)..."
     cd "$PROJECT_DIR"
     nohup uv run uvicorn main:app \
@@ -143,7 +146,7 @@ do_start() {
         --reload-dir user-service/src \
         --reload-dir llm-service/src \
         --reload-dir voc-service/src \
-        > "$LOG_FILE" 2>&1 &
+        > /dev/null 2>&1 &
 
     local pid=$!
     echo "$pid" > "$PID_FILE"
@@ -151,22 +154,22 @@ do_start() {
     # 等待服务就绪
     local max_wait=10 waited=0
     while [ $waited -lt $max_wait ]; do
-        if curl -sf "http://localhost:$PORT/health" > /dev/null 2>&1; then
+        if curl -sf "http://prism.test:$PORT/health" > /dev/null 2>&1; then
             _info "后端已启动（PID: $pid, 端口: ${PORT}）"
-            _info "本地访问: http://localhost:$PORT/docs"
+            _info "本地访问: http://prism.test:$PORT/docs"
             local lan_ip
             lan_ip=$(_get_lan_ip)
             if [ -n "$lan_ip" ]; then
                 _info "局域网访问: http://${lan_ip}:$PORT/docs"
             fi
-            _info "日志文件: $LOG_FILE"
+            _info "日志目录: $LOG_DIR"
             return 0
         fi
         sleep 1
         waited=$((waited + 1))
     done
 
-    _error "后端启动超时，查看日志: $LOG_FILE"
+    _error "后端启动超时，查看日志: $LOG_DIR/prism.log"
     return 1
 }
 
@@ -209,7 +212,7 @@ do_status() {
         pid=$(cat "$PID_FILE")
         _info "运行中（PID: $pid, 端口: ${PORT}）"
 
-        if curl -sf "http://localhost:$PORT/health" > /dev/null 2>&1; then
+        if curl -sf "http://prism.test:$PORT/health" > /dev/null 2>&1; then
             _info "健康检查: 正常"
         else
             _info "健康检查: 异常（进程存活但 HTTP 无响应）"

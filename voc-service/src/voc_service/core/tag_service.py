@@ -298,3 +298,149 @@ async def list_tag_units(
     ]
 
     return {"items": items, "total": total}
+
+
+async def compare_tags(
+    db: AsyncSession,
+    *,
+    preset_taxonomy: list[str],
+    page: int = 1,
+    page_size: int = 20,
+) -> dict:
+    """对比涌现标签与预设分类的覆盖情况。
+
+    对每个有标签的语义单元，检查其涌现标签是否与预设关键词匹配（子串包含）。
+    """
+    # 查所有有标签的语义单元（去重）
+    unit_ids_stmt = select(UnitTagAssociation.unit_id).distinct()
+    unit_ids_result = await db.execute(unit_ids_stmt)
+    all_unit_ids = [row[0] for row in unit_ids_result.all()]
+    total = len(all_unit_ids)
+
+    if total == 0:
+        return {
+            "summary": {
+                "total_units": 0,
+                "emergent_coverage": 0.0,
+                "preset_coverage": 0.0,
+                "emergent_only_count": 0,
+                "preset_only_count": 0,
+                "both_count": 0,
+            },
+            "items": [],
+            "total": 0,
+        }
+
+    # 分页的 unit_ids
+    paged_ids = all_unit_ids[(page - 1) * page_size : page * page_size]
+
+    # 批量查询这些 unit 的文本和标签
+    units_stmt = select(SemanticUnit.id, SemanticUnit.text).where(SemanticUnit.id.in_(paged_ids))
+    units_result = await db.execute(units_stmt)
+    units_map = {row.id: row.text for row in units_result.all()}
+
+    # 查询标签
+    tags_stmt = (
+        select(UnitTagAssociation.unit_id, EmergentTag.name)
+        .join(EmergentTag, UnitTagAssociation.tag_id == EmergentTag.id)
+        .where(UnitTagAssociation.unit_id.in_(paged_ids))
+    )
+    tags_result = await db.execute(tags_stmt)
+    unit_tags: dict[UUID, list[str]] = {}
+    for row in tags_result.all():
+        unit_tags.setdefault(row.unit_id, []).append(row.name)
+
+    # 对比并生成结果
+    items = []
+    # 全量统计用变量（需要遍历所有 unit，不只是分页的）
+    emergent_only_total = 0
+    preset_only_total = 0
+    both_total = 0
+    neither_total = 0
+
+    # 先对全量做统计
+    all_tags_stmt = select(UnitTagAssociation.unit_id, EmergentTag.name).join(
+        EmergentTag, UnitTagAssociation.tag_id == EmergentTag.id
+    )
+    all_tags_result = await db.execute(all_tags_stmt)
+    all_unit_tags: dict[UUID, list[str]] = {}
+    for row in all_tags_result.all():
+        all_unit_tags.setdefault(row.unit_id, []).append(row.name)
+
+    # 获取所有 unit 的文本用于预设匹配
+    all_units_stmt = select(SemanticUnit.id, SemanticUnit.text).where(SemanticUnit.id.in_(all_unit_ids))
+    all_units_result = await db.execute(all_units_stmt)
+    all_units_map = {row.id: row.text for row in all_units_result.all()}
+
+    for uid in all_unit_ids:
+        emergent = all_unit_tags.get(uid, [])
+        unit_text = all_units_map.get(uid, "").lower()
+        has_emergent = len(emergent) > 0
+
+        # 预设匹配：检查 unit 文本或涌现标签名是否包含预设关键词
+        matched_presets = []
+        emergent_lower = [t.lower() for t in emergent]
+        for kw in preset_taxonomy:
+            kw_l = kw.lower()
+            if kw_l in unit_text or any(kw_l in tag for tag in emergent_lower):
+                matched_presets.append(kw)
+        has_preset = len(matched_presets) > 0
+
+        if has_emergent and has_preset:
+            both_total += 1
+        elif has_emergent:
+            emergent_only_total += 1
+        elif has_preset:
+            preset_only_total += 1
+        else:
+            neither_total += 1
+
+    # 构建分页项
+    for uid in paged_ids:
+        emergent = unit_tags.get(uid, [])
+        unit_text = units_map.get(uid, "").lower()
+        emergent_lower = [t.lower() for t in emergent]
+
+        matched_presets = []
+        for kw in preset_taxonomy:
+            kw_l = kw.lower()
+            if kw_l in unit_text or any(kw_l in tag for tag in emergent_lower):
+                matched_presets.append(kw)
+
+        has_emergent = len(emergent) > 0
+        has_preset = len(matched_presets) > 0
+
+        if has_emergent and has_preset:
+            verdict = "both"
+        elif has_emergent:
+            verdict = "emergent_better"
+        elif has_preset:
+            verdict = "preset_better"
+        else:
+            verdict = "neither"
+
+        items.append(
+            {
+                "unit_id": uid,
+                "text": units_map.get(uid, ""),
+                "emergent_tags": emergent,
+                "preset_matches": matched_presets,
+                "verdict": verdict,
+            }
+        )
+
+    emergent_covered = emergent_only_total + both_total
+    preset_covered = preset_only_total + both_total
+
+    return {
+        "summary": {
+            "total_units": total,
+            "emergent_coverage": emergent_covered / total if total > 0 else 0.0,
+            "preset_coverage": preset_covered / total if total > 0 else 0.0,
+            "emergent_only_count": emergent_only_total,
+            "preset_only_count": preset_only_total,
+            "both_count": both_total,
+        },
+        "items": items,
+        "total": total,
+    }

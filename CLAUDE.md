@@ -86,6 +86,26 @@ Python 版本锁定为 3.12（见 `.python-version`）。
 
 ## 关键设计
 
+### 日志系统
+
+- **架构**：structlog → stdlib logging → FileHandler（JSON）+ ConsoleHandler（可读格式）
+- **日志位置**：`~/.prism/log/app/prism.log`，按天 + 按大小滚动，总量上限可配置
+- **结构化字段**：每条日志自动注入 `service`（服务名）和 `module`（功能模块），错误日志必须包含 `error_type` 和 `exc_info=True`
+- **详细规范**：见 `.claude/rules/backend-patterns.md`
+
+### 异步后台任务
+
+耗时操作（LLM 调用、批量 DB 写入）采用 **"快速响应 + 后台处理"** 模式：
+
+```
+请求 → 创建记录 + commit → asyncio.create_task() → 202 返回
+前端轮询状态 ← 后台任务每步更新状态
+```
+
+- 后台任务使用 `session_factory` 创建独立 DB session（禁止复用请求 scope session）
+- 错误处理：新 session 更新错误状态 + 记录恢复结果
+- 详细模式：见 `.claude/rules/backend-patterns.md`
+
 ### LLM 4 槽位模型（替代原别名系统）
 
 4 个能力槽位，每个槽位配置主模型 + 降级链：

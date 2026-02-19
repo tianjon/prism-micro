@@ -33,12 +33,16 @@ async def get_db(request: Request) -> AsyncGenerator[AsyncSession, None]:
 
 
 def get_llm_client(
+    request: Request,
     settings: VocServiceSettings = Depends(get_settings),
 ) -> LLMClient:
-    """获取 LLM 客户端实例。"""
+    """获取 LLM 客户端实例（自动携带当前请求的 JWT token）。"""
+    auth_header = request.headers.get("Authorization", "")
+    token = auth_header.removeprefix("Bearer ").strip() if auth_header.startswith("Bearer ") else None
     return LLMClient(
         base_url=settings.llm_service_base_url,
         timeout=settings.llm_service_timeout,
+        default_api_key=token,
     )
 
 

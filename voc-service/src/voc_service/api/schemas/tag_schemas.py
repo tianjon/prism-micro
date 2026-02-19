@@ -75,3 +75,34 @@ class TagUnitItem(BaseModel):
     relevance: float
     is_primary: bool
     created_at: datetime
+
+
+class CompareSummary(BaseModel):
+    """标签对比统计摘要。"""
+
+    total_units: int
+    emergent_coverage: float = Field(description="涌现标签覆盖率")
+    preset_coverage: float = Field(description="预设标签覆盖率")
+    emergent_only_count: int
+    preset_only_count: int
+    both_count: int
+
+
+class ComparisonItem(BaseModel):
+    """单个语义单元的标签对比结果。"""
+
+    unit_id: UUID
+    text: str
+    emergent_tags: list[str] = Field(default_factory=list, description="涌现标签名列表")
+    preset_matches: list[str] = Field(default_factory=list, description="匹配到的预设标签")
+    verdict: str = Field(description="emergent_better/preset_better/both/neither")
+
+
+class CompareResponse(BaseModel):
+    """标签对比完整响应。"""
+
+    summary: CompareSummary
+    items: list[ComparisonItem]
+    page: int
+    page_size: int
+    total: int

@@ -60,9 +60,14 @@ class PrincipalMiddleware(BaseHTTPMiddleware):
             payload = decode_token(token, self._jwt_secret)
             if payload is None:
                 return _unauthorized_response("无效或过期的 JWT token")
+            if payload.get("type") != "access":
+                return _unauthorized_response("token 类型无效，需要 access token")
+            sub = payload.get("sub")
+            if sub is None:
+                return _unauthorized_response("token 中缺少用户标识")
             request.state.principal = Principal(
                 type=PrincipalType.HUMAN,
-                id=str(payload["sub"]),
+                id=str(sub),
                 display_name=payload.get("username", "unknown"),
             )
         elif api_key_header and self._api_key_verifier:

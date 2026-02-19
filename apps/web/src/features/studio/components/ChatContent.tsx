@@ -61,12 +61,12 @@ export function ChatContent({
     if (!canSend) return;
 
     const userMsg: ChatMessage = {
-      id: crypto.randomUUID(),
+      id: Math.random().toString(36).slice(2) + Date.now().toString(36),
       role: "user",
       content: input.trim(),
     };
     const assistantMsg: ChatMessage = {
-      id: crypto.randomUUID(),
+      id: Math.random().toString(36).slice(2) + Date.now().toString(36),
       role: "assistant",
       content: "",
     };

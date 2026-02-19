@@ -22,7 +22,15 @@ def create_app(settings: VocServiceSettings | None = None) -> FastAPI:
     """
     settings = settings or VocServiceSettings()
 
-    configure_logging(log_level=settings.log_level, json_output=not settings.debug)
+    configure_logging(
+        log_level=settings.log_level,
+        json_output=not settings.debug,
+        service_name="voc-service",
+        log_dir=settings.log_dir,
+        log_max_size_mb=settings.log_max_size_mb,
+        log_rotation_days=settings.log_rotation_days,
+        log_file_max_mb=settings.log_file_max_mb,
+    )
 
     # 数据库引擎 & session 工厂
     pool_config = PoolConfig(

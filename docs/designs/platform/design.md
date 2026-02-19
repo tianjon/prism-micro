@@ -788,7 +788,7 @@ class Neo4jPool:
 
     def __init__(
         self,
-        uri: str = "bolt://localhost:7687",
+        uri: str = "bolt://prism.test:7687",
         username: str = "neo4j",
         password: str = "prism",
         max_connection_pool_size: int = 10,
@@ -917,10 +917,10 @@ class BaseAppSettings(BaseSettings):
     log_level: str = "INFO"
 
     # --- 数据库 ---
-    database_url: str = "postgresql+asyncpg://prism:prism@localhost:5432/prism"
+    database_url: str = "postgresql+asyncpg://prism:prism@prism.test:5432/prism"
 
     # --- Redis ---
-    redis_url: str = "redis://localhost:6379/0"
+    redis_url: str = "redis://prism.test:6379/0"
 
     # --- JWT ---
     jwt_secret: str = "change-me-in-production"
@@ -928,7 +928,7 @@ class BaseAppSettings(BaseSettings):
     jwt_refresh_token_expire_days: int = 7
 
     # --- Neo4j ---
-    neo4j_uri: str = "bolt://localhost:7687"
+    neo4j_uri: str = "bolt://prism.test:7687"
     neo4j_username: str = "neo4j"
     neo4j_password: str = "prism"
 ```
@@ -1178,8 +1178,8 @@ jobs:
       - name: pytest ${{ matrix.service }}
         run: uv run pytest ${{ matrix.service }}/tests/ -v --tb=short
         env:
-          DATABASE_URL: postgresql+asyncpg://prism:prism@localhost:5432/prism
-          REDIS_URL: redis://localhost:6379/0
+          DATABASE_URL: postgresql+asyncpg://prism:prism@prism.test:5432/prism
+          REDIS_URL: redis://prism.test:6379/0
 ```
 
 **CI 隔离原则**：
@@ -1285,39 +1285,49 @@ services:
 
 ### 7.4 结构化日志
 
-```python
-# shared/src/prism_shared/logging.py
+**架构**：`structlog → stdlib logging → FileHandler`
 
-import structlog
+- structlog 负责结构化处理（字段注入、格式化）
+- stdlib logging 负责输出路由（文件滚动、大小控制）
 
+**日志文件滚动策略**：
 
-def configure_logging(log_level: str = "INFO", json_output: bool = True) -> None:
-    """
-    配置结构化日志。
-    开发环境输出可读格式，生产环境输出 JSON 格式。
-    """
-    processors = [
-        structlog.contextvars.merge_contextvars,
-        structlog.processors.add_log_level,
-        structlog.processors.TimeStamper(fmt="iso"),
-        structlog.processors.StackInfoRenderer(),
-    ]
+| 策略 | 说明 |
+|------|------|
+| 按天滚动 | `TimedRotatingFileHandler(when="midnight")`，每日产生新归档 |
+| 按大小追加序号 | 单文件超过 `log_file_max_mb`（默认 50MB）时追加序号 `prism.YYYY-MM-DD.N.log` |
+| 空间上限 | `log_max_size_mb`（默认 200MB），超限时删除最旧归档文件 |
+| 保留天数 | `log_rotation_days`（默认 7 天），自动清理过期归档 |
 
-    if json_output:
-        processors.append(structlog.processors.JSONRenderer())
-    else:
-        processors.append(structlog.dev.ConsoleRenderer())
+**service / module 字段自动注入**：
 
-    structlog.configure(
-        processors=processors,
-        wrapper_class=structlog.make_filtering_bound_logger(
-            structlog.get_level_from_name(log_level)
-        ),
-        context_class=dict,
-        logger_factory=structlog.PrintLoggerFactory(),
-        cache_logger_on_first_use=True,
-    )
-```
+`add_service_context` processor 在每条日志中自动注入：
+- `service`：优先使用 `configure_logging(service_name=...)` 传入的值；统一开发服务器中按 `__name__` 前缀推导（`voc_service.*` → `voc-service`）
+- `module`：从 `__name__` 提取第二级包名（`voc_service.pipeline.stage1` → `pipeline`）
+
+**开发模式双输出**：
+
+`json_output=False` 时同时输出到控制台（ConsoleRenderer）和文件（JSONRenderer），文件始终 JSON 格式以支持查询 API。
+
+**配置项**（`BaseAppSettings`）：
+
+| 配置项 | 默认值 | 说明 |
+|--------|--------|------|
+| `log_dir` | `~/.prism/log/app` | 日志目录 |
+| `log_max_size_mb` | `200` | 日志目录总大小上限 |
+| `log_rotation_days` | `7` | 归档保留天数 |
+| `log_file_max_mb` | `50` | 单文件大小上限 |
+
+**日志查询 API**（`shared/platform/`）：
+
+| 端点 | 说明 |
+|------|------|
+| `GET /api/platform/logs` | 分页查询日志，支持 service/module/level/时间范围筛选，倒序排列，扫描上限 10,000 行 |
+| `GET /api/platform/logs/filters` | 获取可用筛选值（services/modules/levels） |
+
+查询引擎基于文件扫描，逐行 JSON 解析，按归档文件名中的日期跳过不相关文件。响应复用 `PaginatedResponse`，额外追加 `truncated` 字段标识扫描是否达到上限。
+
+认证采用轻量 JWT-only 方式（`_require_auth`），仅校验 token 有效性，不查询数据库。
 
 ---
 
@@ -1386,7 +1396,7 @@ from sqlalchemy import text
 from prism_shared.db.session import create_engine, create_session_factory
 from prism_shared.db.pool_config import PoolConfig
 
-DATABASE_URL = "postgresql+asyncpg://prism:prism@localhost:5432/prism"
+DATABASE_URL = "postgresql+asyncpg://prism:prism@prism.test:5432/prism"
 
 
 @pytest.fixture
@@ -1420,7 +1430,7 @@ from prism_shared.db.neo4j import Neo4jPool
 
 @pytest.fixture
 async def neo4j_pool():
-    pool = Neo4jPool(uri="bolt://localhost:7687", username="neo4j", password="prism")
+    pool = Neo4jPool(uri="bolt://prism.test:7687", username="neo4j", password="prism")
     await pool.connect()
     yield pool
     await pool.close()

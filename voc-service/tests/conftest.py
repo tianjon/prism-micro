@@ -34,11 +34,11 @@ NOW = datetime(2026, 1, 15, 12, 0, 0, tzinfo=UTC)
 def settings() -> VocServiceSettings:
     """测试用配置。"""
     return VocServiceSettings(
-        database_url="postgresql+asyncpg://test:test@localhost:5432/test",
-        redis_url="redis://localhost:6379",
+        database_url="postgresql+asyncpg://test:test@prism.test:5432/test",
+        redis_url="redis://prism.test:6379",
         jwt_secret="test-secret-key",
         debug=True,
-        llm_service_base_url="http://localhost:8601",
+        llm_service_base_url="http://prism.test:8601",
         llm_service_timeout=10,
         confidence_high_threshold=0.8,
         confidence_medium_threshold=0.6,

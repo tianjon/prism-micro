@@ -5,6 +5,7 @@
  */
 
 import { Plus } from "lucide-react";
+import { ICON_SIZE } from "@/lib/icon-sizes";
 import { PageHeader } from "@/components/PageHeader";
 import { PageContainer } from "@/components/PageContainer";
 import { ErrorState } from "@/components/ErrorState";
@@ -65,7 +66,7 @@ export function ProvidersPage() {
       {providers.length === 0 ? (
         <div className="flex min-h-[200px] flex-col items-center justify-center gap-4 text-center">
           <div className="rounded-2xl bg-white/5 p-4">
-            <Plus size={24} className="text-white/20" />
+            <Plus size={ICON_SIZE["3xl"]} className="text-white/20" />
           </div>
           <div>
             <h3 className="text-lg font-semibold text-white/60">

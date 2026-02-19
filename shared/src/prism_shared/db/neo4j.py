@@ -21,7 +21,7 @@ class Neo4jPool:
 
     def __init__(
         self,
-        uri: str = "bolt://localhost:7687",
+        uri: str = "bolt://prism.test:7687",
         username: str = "neo4j",
         password: str = "prism",
         max_connection_pool_size: int = 10,

@@ -12,10 +12,14 @@ interface RequestConfig {
   method: "GET" | "POST" | "PUT" | "DELETE";
   path: string;
   body?: unknown;
+  /** FormData 上传（设置后忽略 body，不设置 Content-Type 以便浏览器自动添加 boundary） */
+  formData?: FormData;
   params?: Record<string, string | number>;
   headers?: Record<string, string>;
   /** 是否跳过 Token 注入（用于登录/刷新等公开接口） */
   skipAuth?: boolean;
+  /** AbortSignal，用于请求超时或取消 */
+  signal?: AbortSignal;
 }
 
 // ---- API 错误 ----
@@ -43,17 +47,19 @@ class ApiClient {
    * 自动注入 Authorization header + 处理 401 刷新 + 统一错误格式。
    */
   async request<T>(config: RequestConfig): Promise<T> {
-    const { method, path, body, params, headers, skipAuth } = config;
+    const { method, path, body, formData, params, headers, skipAuth, signal } = config;
 
     const url = new URL(`${API_BASE}${path}`, window.location.origin);
     if (params) {
-      Object.entries(params).forEach(([k, v]) =>
-        url.searchParams.set(k, String(v)),
-      );
+      Object.entries(params).forEach(([k, v]) => {
+        if (v !== undefined && v !== null && v !== "") {
+          url.searchParams.set(k, String(v));
+        }
+      });
     }
 
     const requestHeaders: Record<string, string> = {
-      "Content-Type": "application/json",
+      ...(formData ? {} : { "Content-Type": "application/json" }),
       ...headers,
     };
 
@@ -67,7 +73,8 @@ class ApiClient {
     const response = await fetch(url.toString(), {
       method,
       headers: requestHeaders,
-      body: body ? JSON.stringify(body) : undefined,
+      body: formData ?? (body ? JSON.stringify(body) : undefined),
+      signal,
     });
 
     // 401 处理：尝试刷新 Token

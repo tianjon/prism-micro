@@ -9,6 +9,9 @@ from prism_shared.schemas.pagination import PaginatedResponse, PaginationMeta
 from prism_shared.schemas.response import ApiResponse
 from voc_service.api.deps import UserRecord, get_current_user, get_db, get_settings
 from voc_service.api.schemas.tag_schemas import (
+    CompareResponse,
+    CompareSummary,
+    ComparisonItem,
     FeedbackRequest,
     FeedbackResponse,
     FeedbackSummary,
@@ -18,6 +21,7 @@ from voc_service.api.schemas.tag_schemas import (
 )
 from voc_service.core.config import VocServiceSettings
 from voc_service.core.tag_service import (
+    compare_tags,
     get_tag_detail,
     list_tag_units,
     list_tags,
@@ -93,6 +97,41 @@ async def tags_list(
             for item in result["items"]
         ],
         pagination=PaginationMeta(page=page, page_size=page_size, total=result["total"]),
+    )
+
+
+@router.get("/compare", response_model=ApiResponse[CompareResponse])
+async def tags_compare(
+    preset_taxonomy: str = Query(description='预设分类关键词 JSON 数组，如 ["充电","续航"]'),
+    page: int = Query(default=1, ge=1, description="页码"),
+    page_size: int = Query(default=20, ge=1, le=100, description="每页条数"),
+    db: AsyncSession = Depends(get_db),
+    _current_user: UserRecord = Depends(get_current_user),
+):
+    """涌现标签 vs 预设分类对比。"""
+    import json
+
+    try:
+        keywords = json.loads(preset_taxonomy)
+        if not isinstance(keywords, list) or not all(isinstance(k, str) for k in keywords):
+            raise ValueError
+    except (json.JSONDecodeError, ValueError):
+        from fastapi import HTTPException, status
+
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": "VOC_INVALID_TAXONOMY", "message": "preset_taxonomy 须为 JSON 字符串数组"},
+        ) from None
+
+    result = await compare_tags(db, preset_taxonomy=keywords, page=page, page_size=page_size)
+    return ApiResponse(
+        data=CompareResponse(
+            summary=CompareSummary(**result["summary"]),
+            items=[ComparisonItem(**item) for item in result["items"]],
+            page=page,
+            page_size=page_size,
+            total=result["total"],
+        )
     )
 
 

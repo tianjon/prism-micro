@@ -73,9 +73,9 @@ do_start() {
     # 等待服务就绪
     local max_wait=15 waited=0
     while [ $waited -lt $max_wait ]; do
-        if curl -sf "http://localhost:$PORT" > /dev/null 2>&1; then
+        if curl -sf "http://prism.test:$PORT" > /dev/null 2>&1; then
             _info "前端已启动（PID: $pid, 端口: ${PORT}）"
-            _info "本地访问: http://localhost:$PORT"
+            _info "本地访问: http://prism.test:$PORT"
             local lan_ip
             lan_ip=$(_get_lan_ip)
             if [ -n "$lan_ip" ]; then
@@ -133,7 +133,7 @@ do_status() {
         pid=$(cat "$PID_FILE")
         _info "运行中（PID: $pid, 端口: ${PORT}）"
 
-        if curl -sf "http://localhost:$PORT" > /dev/null 2>&1; then
+        if curl -sf "http://prism.test:$PORT" > /dev/null 2>&1; then
             _info "健康检查: 正常"
         else
             _info "健康检查: 异常（进程存活但 HTTP 无响应）"

@@ -281,6 +281,8 @@ export interface UploadResponse {
   status: string;
   message: string;
   file_info: FileInfo;
+  file_hash: string | null;
+  duplicate_batch_id: string | null;
   mapping_preview_url: string | null;
   matched_mapping: Record<string, unknown> | null;
 }
@@ -330,6 +332,60 @@ export interface BatchStatus {
   error_message: string | null;
   created_at: string;
   completed_at: string | null;
+}
+
+// ========== VOC 导入 v2 新增 ==========
+
+export interface ColumnStats {
+  name: string;
+  dtype: string;
+  total_count: number;
+  total_rows: number;
+  unique_count: number;
+  null_count: number;
+  sample_values: string[];
+  min_value: string | null;
+  max_value: string | null;
+  mean_value: string | null;
+}
+
+export interface DataPreview {
+  batch_id: string;
+  rows: Record<string, unknown>[];
+  columns: ColumnStats[];
+  total_rows: number;
+}
+
+export interface PromptPreview {
+  batch_id: string;
+  prompt_text: string | null;
+  source: "llm_generated" | "template_reused" | "cache_hit";
+  template_name: string | null;
+  cache_hit: boolean;
+  cached_mapping_id: string | null;
+}
+
+export interface ResultPreview {
+  batch_id: string;
+  sample_rows: Record<string, unknown>[];
+  statistics: {
+    total_count: number;
+    new_count: number;
+    duplicate_count: number;
+    failed_count: number;
+  };
+}
+
+export interface GenerateMappingRequest {
+  dedup_columns: string[];
+}
+
+export interface BuildPromptRequest {
+  dedup_columns: string[];
+}
+
+export interface UpdatePromptRequest {
+  prompt_text: string;
 }
 
 // ========== VOC 搜索 ==========
@@ -501,6 +557,74 @@ export interface VoiceDetail {
   metadata: Record<string, unknown> | null;
   units: VoiceUnitItem[];
   created_at: string;
+}
+
+// ========== VOC 数据管理 ==========
+
+export interface DataBatch {
+  id: string;
+  source: string;
+  file_name: string | null;
+  file_size_bytes: number | null;
+  status: string;
+  total_count: number;
+  new_count: number;
+  duplicate_count: number;
+  failed_count: number;
+  mapping_id: string | null;
+  error_message: string | null;
+  created_at: string;
+  completed_at: string | null;
+  file_hash: string | null;
+  file_statistics: Record<string, unknown> | null;
+  dedup_columns: string[] | null;
+  prompt_text: string | null;
+  mapping_name: string | null;
+  updated_at: string;
+}
+
+/** @deprecated 使用 DataBatch */
+export type DataBatchListItem = DataBatch;
+/** @deprecated 使用 DataBatch */
+export type DataBatchDetail = DataBatch;
+
+export interface DataMapping {
+  id: string;
+  name: string;
+  source_format: string;
+  created_by: string;
+  confidence: number | null;
+  column_hash: string;
+  usage_count: number;
+  created_at: string;
+  column_mappings: Record<string, unknown> | null;
+  sample_data: Record<string, unknown> | null;
+  updated_at: string | null;
+}
+
+/** @deprecated 使用 DataMapping */
+export type DataMappingListItem = DataMapping;
+/** @deprecated 使用 DataMapping */
+export type DataMappingDetail = DataMapping;
+
+export interface DataVoiceListItem {
+  id: string;
+  source: string;
+  raw_text: string;
+  content_hash: string;
+  source_key: string | null;
+  batch_id: string | null;
+  processed_status: string;
+  processing_error: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DataDeleteResponse {
+  id: string;
+  deleted: boolean;
+  message: string;
 }
 
 // ========== 平台日志 ==========

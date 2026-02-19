@@ -57,9 +57,13 @@ def parse_json_from_text(text: str) -> dict:
         AppException: JSON 解析失败
     """
     json_str = text.strip()
+    # 优先匹配完整的 markdown 代码块
     fence_match = re.search(r"```(?:\w*)\s*\n(.*?)```", json_str, re.DOTALL)
     if fence_match:
         json_str = fence_match.group(1).strip()
+    elif json_str.startswith("```"):
+        # 处理截断的代码块（LLM 响应被 max_tokens 截断，缺少闭合标记）
+        json_str = re.sub(r"^```\w*\s*\n?", "", json_str).strip()
 
     try:
         return json.loads(json_str)

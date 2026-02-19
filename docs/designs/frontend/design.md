@@ -36,6 +36,7 @@
 | `prism import csv/excel <file>` | 数据导入（复用后端 API） |
 | `prism search "query"` | 语义搜索 |
 | `prism slot list/config/test` | 槽位管理 |
+| `prism logs` | 查询后端日志（service/module/level 筛选，text/json 输出） |
 | `prism crawl dongchedi/weibo` | 爬虫触发（Wave 2，M8） |
 
 ### 1.2 PRD 功能映射
@@ -55,6 +56,8 @@
 | F21: 槽位管理 | CLI | `prism slot` 命令组 | M5 |
 | F22/F23: 爬虫 | CLI | `prism crawl` 命令 | M8 |
 | F27: LLM Studio | 前端 | `/studio/playground` + `/studio/slots` 页面 | M5 |
+| 系统日志 | 前端 | `/admin/logs` 页面 | M5 |
+| 系统日志 | CLI | `prism logs` 命令 | M5 |
 
 ### 1.3 里程碑
 
@@ -513,7 +516,7 @@ interface PreferenceVoteRequest {
 # ~/.prism/conf/cli.toml
 
 [server]
-base_url = "http://localhost:8601"
+base_url = "http://prism.test:8601"
 
 [auth]
 access_token = ""
@@ -1792,7 +1795,7 @@ def output(data: dict | list, mode: str = "human"):
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "generate-types": "openapi-typescript http://localhost:8601/openapi.json -o src/api/generated-types.ts",
+    "generate-types": "openapi-typescript http://prism.test:8601/openapi.json -o src/api/generated-types.ts",
     "lint": "eslint src --ext .ts,.tsx",
     "type-check": "tsc --noEmit"
   }
@@ -1808,6 +1811,43 @@ pnpm generate-types
 # CI 中可使用静态 OpenAPI JSON 文件
 openapi-typescript ./openapi.json -o src/api/generated-types.ts
 ```
+
+### 6.x 系统日志页面（`/admin/logs`）
+
+#### 前端 LogsPage
+
+位于 `features/admin/pages/LogsPage.tsx`，提供日志查询和浏览能力：
+
+| 功能 | 说明 |
+|------|------|
+| 筛选栏 | 服务/模块/级别三个下拉选择器，选项从 `/api/platform/logs/filters` 动态加载 |
+| 日志表格 | 列 = 时间 / 级别 / 服务 / 模块 / 消息，使用 `glass-card` 风格 |
+| 级别颜色编码 | error/critical = 红，warning = 黄，info = 白，debug = 灰 |
+| 自动刷新 | 5 秒轮询 + 暂停/恢复按钮 + 手动刷新按钮 |
+| 分页 | 上一页/下一页，显示当前页/总页数 |
+
+API 封装在 `api/platform-api.ts`：`fetchLogs(params)` 和 `fetchLogFilters()`。
+
+Sidebar 导航组"管理"下新增"系统日志"项（图标：`ScrollText`）。
+
+#### CLI `prism logs` 命令
+
+位于 `apps/cli/src/prism_cli/commands/logs.py`，参数：
+
+| 参数 | 短选项 | 说明 |
+|------|--------|------|
+| `--service` | `-s` | 按服务筛选 |
+| `--module` | `-m` | 按模块筛选 |
+| `--level` | `-l` | 按级别筛选（debug/info/warning/error） |
+| `--since` | — | 起始时间（ISO 8601） |
+| `--until` | — | 结束时间（ISO 8601） |
+| `--tail` | `-n` | 显示最近 N 条（默认 20） |
+| `--format` | `-f` | 输出格式：text（默认）/ json |
+| `--api-url` | — | 后端 API 地址（默认 `http://prism.test:8601`，支持 `PRISM_API_URL` 环境变量） |
+| `--token` | `-t` | JWT token（支持 `PRISM_TOKEN` 环境变量） |
+
+**text 输出格式**：`[时间] [级别] [服务/模块] 消息`，级别按颜色区分（使用 `rich`）。
+**json 输出格式**：每行一个 JSON 对象，适合 Agent 管道解析。
 
 ---
 

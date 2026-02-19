@@ -247,7 +247,7 @@ export function CreateProviderInline({
                   type="url"
                   value={baseUrl}
                   onChange={(e) => setBaseUrl(e.target.value)}
-                  placeholder="http://localhost:8000/v1"
+                  placeholder="http://prism.test:8000/v1"
                   className="glass-input h-10 w-full px-3 text-sm font-mono"
                 />
               </div>

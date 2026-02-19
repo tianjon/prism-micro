@@ -18,6 +18,7 @@ from prism_shared.db import PoolConfig, create_engine, create_session_factory
 from prism_shared.exception_handlers import register_exception_handlers
 from prism_shared.logging import configure_logging
 from prism_shared.middleware import RequestIdMiddleware
+from prism_shared.platform.log_routes import router as platform_router
 from prism_shared.schemas import ApiResponse
 from user_service.api.router import router as user_router
 from voc_service.api.router import api_router as voc_router
@@ -38,7 +39,15 @@ def create_app() -> FastAPI:
     llm_settings = LLMServiceSettings()
     voc_settings = VocServiceSettings()
 
-    configure_logging(log_level=llm_settings.log_level, json_output=False)
+    configure_logging(
+        log_level=llm_settings.log_level,
+        json_output=False,
+        service_name="dev-server",
+        log_dir=llm_settings.log_dir,
+        log_max_size_mb=llm_settings.log_max_size_mb,
+        log_rotation_days=llm_settings.log_rotation_days,
+        log_file_max_mb=llm_settings.log_file_max_mb,
+    )
 
     app = FastAPI(
         title="Prism Dev Server",
@@ -78,6 +87,7 @@ def create_app() -> FastAPI:
     app.include_router(user_router)  # /api/auth/*
     app.include_router(llm_router)  # /api/llm/*
     app.include_router(voc_router)  # /api/voc/*
+    app.include_router(platform_router, prefix="/api/platform")  # 日志查询
 
     # 健康检查
     @app.get("/health", tags=["health"])

@@ -14,7 +14,7 @@ from voc_service.models.enums import BatchStatus
 from voc_service.models.ingestion_batch import IngestionBatch
 from voc_service.models.schema_mapping import SchemaMapping
 
-logger = structlog.get_logger()
+logger = structlog.get_logger(__name__)
 
 
 async def create_batch(
@@ -46,13 +46,14 @@ async def execute_import(
     rows: list[dict[str, str]],
     mapping: SchemaMapping,
     chunk_size: int = 500,
+    dedup_columns: list[str] | None = None,
 ) -> IngestionBatch:
     """
     按 chunk_size 分块写入 Voice 表。
 
     1. 应用映射：source_column → target_field
     2. 计算 content_hash（SHA-256）
-    3. 提取 source_key
+    3. 提取 source_key（或从 dedup_columns 生成）
     4. INSERT ... ON CONFLICT DO NOTHING 去重
     5. 更新 batch 计数器
     """
@@ -76,7 +77,7 @@ async def execute_import(
         elif target == "source_key":
             source_key_col = source_col
         elif target.startswith("metadata."):
-            metadata_key = target[len("metadata.") :]
+            metadata_key = target[len("metadata."):]
             metadata_cols[source_col] = metadata_key
 
     if raw_text_col is None:
@@ -91,7 +92,7 @@ async def execute_import(
         " (id, source, raw_text, content_hash, source_key,"
         " batch_id, processed_status, metadata, created_at, updated_at)"
         " VALUES (gen_random_uuid(), :source, :raw_text, :content_hash,"
-        " :source_key, :batch_id, 'pending', :metadata::jsonb, now(), now())"
+        " :source_key, :batch_id, 'pending', CAST(:metadata AS jsonb), now(), now())"
         " ON CONFLICT (source, source_key) WHERE source_key IS NOT NULL DO NOTHING"
     )
     insert_sql_without_source_key = text(
@@ -99,7 +100,7 @@ async def execute_import(
         " (id, source, raw_text, content_hash, source_key,"
         " batch_id, processed_status, metadata, created_at, updated_at)"
         " VALUES (gen_random_uuid(), :source, :raw_text, :content_hash,"
-        " NULL, :batch_id, 'pending', :metadata::jsonb, now(), now())"
+        " NULL, :batch_id, 'pending', CAST(:metadata AS jsonb), now(), now())"
         " ON CONFLICT (content_hash) WHERE source_key IS NULL DO NOTHING"
     )
 
@@ -115,9 +116,18 @@ async def execute_import(
                     continue
 
                 content_hash = hashlib.sha256(raw_text.encode("utf-8")).hexdigest()
-                source_key = row.get(source_key_col, "").strip() if source_key_col else None
-                if source_key == "":
-                    source_key = None
+
+                # source_key 逻辑：优先映射列，其次 dedup_columns 生成
+                source_key = None
+                if source_key_col:
+                    source_key = row.get(source_key_col, "").strip() or None
+
+                if source_key is None and dedup_columns:
+                    dedup_values = [row.get(col, "").strip() for col in dedup_columns]
+                    if any(dedup_values):
+                        source_key = hashlib.sha256(
+                            "|".join(str(v) for v in dedup_values).encode()
+                        ).hexdigest()[:32]
 
                 # 构建 metadata
                 metadata = {}
@@ -125,6 +135,10 @@ async def execute_import(
                     val = row.get(source_col, "").strip()
                     if val:
                         metadata[meta_key] = val
+
+                # 自动填充 platform：若 LLM 映射未覆盖或该行该列为空，从 batch.source 回填
+                if "platform" not in metadata and batch.source:
+                    metadata["platform"] = batch.source
 
                 # 根据 source_key 是否存在选择对应的去重策略
                 metadata_json = json.dumps(metadata if metadata else {}, ensure_ascii=False)
@@ -156,15 +170,7 @@ async def execute_import(
             error=str(e),
             exc_info=True,
         )
-        batch.status = BatchStatus.FAILED
-        batch.error_message = f"导入过程中发生错误：{type(e).__name__}: {e}"
-        batch.new_count = new_count
-        batch.duplicate_count = duplicate_count
-        batch.failed_count = failed_count
-        # 使用 savepoint 确保 batch 状态更新不被外层 rollback 覆盖
-        # 这里不 raise，让调用方能读取到 batch 的失败状态
-        await db.flush()
-        return batch
+        raise
 
     # 更新批次计数器
     batch.new_count = new_count

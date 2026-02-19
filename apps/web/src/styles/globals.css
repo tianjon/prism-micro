@@ -452,3 +452,27 @@ a:focus-visible,
   border: 2px solid rgba(255, 255, 255, 0.2);
   cursor: pointer;
 }
+
+/* --- AG Grid Liquid Glass 覆盖 --- */
+
+.ag-root-wrapper {
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+}
+
+.ag-header-group-text {
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 10px;
+}
+
+.ag-row {
+  cursor: pointer;
+}
+
+.ag-cell-focus {
+  border: none !important;
+}

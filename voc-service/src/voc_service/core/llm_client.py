@@ -5,15 +5,16 @@ import structlog
 
 from prism_shared.exceptions import AppException
 
-logger = structlog.get_logger()
+logger = structlog.get_logger(__name__)
 
 
 class LLMClient:
     """封装对 llm-service 的 HTTP 调用。"""
 
-    def __init__(self, base_url: str, timeout: int = 60) -> None:
+    def __init__(self, base_url: str, timeout: int = 60, default_api_key: str | None = None) -> None:
         self._base_url = base_url.rstrip("/")
         self._timeout = timeout
+        self._default_api_key = default_api_key
 
     async def invoke_slot(
         self,
@@ -43,9 +44,10 @@ class LLMClient:
             "max_tokens": max_tokens,
             "temperature": temperature,
         }
+        token = api_key or self._default_api_key
         headers = {}
-        if api_key:
-            headers["Authorization"] = f"Bearer {api_key}"
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
 
         try:
             async with httpx.AsyncClient(timeout=self._timeout) as client:
@@ -92,9 +94,10 @@ class LLMClient:
         if dimensions is not None:
             payload["dimensions"] = dimensions
 
+        token = api_key or self._default_api_key
         headers = {}
-        if api_key:
-            headers["Authorization"] = f"Bearer {api_key}"
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
 
         try:
             async with httpx.AsyncClient(timeout=self._timeout) as client:
@@ -147,9 +150,10 @@ class LLMClient:
         if top_n is not None:
             payload["top_n"] = top_n
 
+        token = api_key or self._default_api_key
         headers = {}
-        if api_key:
-            headers["Authorization"] = f"Bearer {api_key}"
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
 
         try:
             async with httpx.AsyncClient(timeout=self._timeout) as client:

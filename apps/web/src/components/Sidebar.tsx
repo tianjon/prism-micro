@@ -8,12 +8,18 @@ import { NavLink } from "react-router-dom";
 import {
   LayoutDashboard,
   Server,
+  ScrollText,
   LogOut,
   FlaskConical,
   Layers,
   X,
+  BookOpen,
   ChevronsLeft,
   ChevronsRight,
+  Upload,
+  SearchIcon,
+  Tags,
+  Database,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ICON_SIZE } from "@/lib/icon-sizes";
@@ -32,6 +38,31 @@ interface NavGroup {
 
 const navGroups: NavGroup[] = [
   {
+    title: "VOC 分析",
+    items: [
+      {
+        to: "/voc/import",
+        label: "数据导入",
+        icon: <Upload size={ICON_SIZE["2xl"]} />,
+      },
+      {
+        to: "/voc/search",
+        label: "语义搜索",
+        icon: <SearchIcon size={ICON_SIZE["2xl"]} />,
+      },
+      {
+        to: "/voc/tags",
+        label: "涌现标签",
+        icon: <Tags size={ICON_SIZE["2xl"]} />,
+      },
+      {
+        to: "/voc/data",
+        label: "数据管理",
+        icon: <Database size={ICON_SIZE["2xl"]} />,
+      },
+    ],
+  },
+  {
     title: "管理",
     items: [
       {
@@ -43,6 +74,11 @@ const navGroups: NavGroup[] = [
         to: "/admin/providers",
         label: "Provider 管理",
         icon: <Server size={ICON_SIZE["2xl"]} />,
+      },
+      {
+        to: "/admin/logs",
+        label: "系统日志",
+        icon: <ScrollText size={ICON_SIZE["2xl"]} />,
       },
     ],
   },
@@ -58,6 +94,16 @@ const navGroups: NavGroup[] = [
         to: "/studio/slots",
         label: "槽位测试",
         icon: <Layers size={ICON_SIZE["2xl"]} />,
+      },
+    ],
+  },
+  {
+    title: "文档",
+    items: [
+      {
+        to: "/docs/import-arch",
+        label: "导入架构",
+        icon: <BookOpen size={ICON_SIZE["2xl"]} />,
       },
     ],
   },

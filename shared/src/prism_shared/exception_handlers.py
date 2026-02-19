@@ -8,7 +8,7 @@ from fastapi.responses import JSONResponse
 from prism_shared.exceptions import AppException
 from prism_shared.schemas.response import ErrorDetail, ErrorResponse, Meta
 
-logger = structlog.get_logger()
+logger = structlog.get_logger(__name__)
 
 
 async def _app_exception_handler(request: Request, exc: AppException) -> JSONResponse:
@@ -59,7 +59,13 @@ async def _unhandled_exception_handler(request: Request, exc: Exception) -> JSON
     """兜底：将未处理异常转换为统一 ErrorResponse，同时记录日志。"""
     request_id = getattr(request.state, "request_id", None)
     meta = Meta(request_id=request_id) if request_id else Meta()
-    logger.error("未处理异常", exc_info=exc, path=request.url.path)
+    logger.error(
+        "未处理异常",
+        exc_info=True,
+        error_type=type(exc).__name__,
+        error=str(exc),
+        path=request.url.path,
+    )
     return JSONResponse(
         status_code=500,
         content=ErrorResponse(

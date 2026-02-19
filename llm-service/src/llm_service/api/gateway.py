@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from llm_service.api.deps import get_db, get_encryption_key, require_admin
+from llm_service.api.deps import get_current_user, get_db, get_encryption_key
 from llm_service.api.schemas.gateway import (
     CompletionRequest,
     CompletionResponse,
@@ -25,7 +25,7 @@ router = APIRouter(prefix="/api/llm", tags=["gateway"])
 @router.post("/completions")
 async def completions(
     body: CompletionRequest,
-    _admin=Depends(require_admin),
+    _user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     encryption_key: str = Depends(get_encryption_key),
 ):
@@ -76,7 +76,7 @@ async def completions(
 @router.post("/embeddings", response_model=ApiResponse[EmbeddingResponse])
 async def embeddings(
     body: EmbeddingRequest,
-    _admin=Depends(require_admin),
+    _user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     encryption_key: str = Depends(get_encryption_key),
 ):
@@ -102,7 +102,7 @@ async def embeddings(
 @router.post("/rerank", response_model=ApiResponse[RerankResponse])
 async def rerank(
     body: RerankRequest,
-    _admin=Depends(require_admin),
+    _user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     encryption_key: str = Depends(get_encryption_key),
 ):

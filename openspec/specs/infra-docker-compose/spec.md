@@ -5,7 +5,7 @@
 
 #### Scenario: PostgreSQL 服务正常启动
 - **WHEN** 执行 `docker compose up -d`
-- **THEN** PostgreSQL 容器启动成功，监听宿主机 5432 端口，可通过 `localhost:5432` 连接
+- **THEN** PostgreSQL 容器启动成功，监听宿主机 5432 端口，可通过 `prism.test:5432` 连接
 
 #### Scenario: pgvector 扩展可用
 - **WHEN** PostgreSQL 服务启动后，执行 `CREATE EXTENSION IF NOT EXISTS vector;`
@@ -16,7 +16,7 @@
 
 #### Scenario: Redis 服务正常启动
 - **WHEN** 执行 `docker compose up -d`
-- **THEN** Redis 容器启动成功，监听宿主机 6379 端口，可通过 `localhost:6379` 连接
+- **THEN** Redis 容器启动成功，监听宿主机 6379 端口，可通过 `prism.test:6379` 连接
 
 #### Scenario: Redis 数据持久化
 - **WHEN** 向 Redis 写入数据后，执行 `docker compose down` 再 `docker compose up -d`

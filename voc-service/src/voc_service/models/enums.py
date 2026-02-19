@@ -17,7 +17,8 @@ class BatchStatus(StrEnum):
     """导入批次状态。"""
 
     PENDING = "pending"
-    PARSING = "parsing"
+    PROMPT_READY = "prompt_ready"
+    GENERATING_MAPPING = "generating_mapping"
     MAPPING = "mapping"
     IMPORTING = "importing"
     PROCESSING = "processing"
