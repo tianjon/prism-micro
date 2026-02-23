@@ -125,8 +125,8 @@
   - 网络环境可访问懂车帝/微博
 - **主流程**：
   1. 用户通过 CLI 触发爬虫采集：
-     - `prism crawl dongchedi --keyword "阿维塔" --pages 5`
-     - `prism crawl weibo --keyword "Peets Coffee" --days 7`
+     - `prism crawl dongchedi --keyword "Prism" --pages 5`
+     - `prism crawl weibo --keyword "Prism Coffee" --days 7`
   2. 爬虫脚本自动执行：访问目标网站、解析页面结构、提取评论数据
   3. 爬虫输出标准化 JSON 文件，包含 content、author、published_at、source_url 等字段
   4. 系统自动将数据导入摄入管线：
@@ -141,8 +141,8 @@
   - 爬虫抓取的内容为空或无效 → 跳过无效数据，记录到日志
   - 部分数据 AI 管线处理失败 → 原始数据保留，标记 `status = failed`
 - **验收标准**：
-  - AC1：`prism crawl dongchedi --keyword "阿维塔"` 能成功抓取至少 50 条评论
-  - AC2：`prism crawl weibo --keyword "Peets Coffee"` 能成功抓取至少 30 条微博
+  - AC1：`prism crawl dongchedi --keyword "Prism"` 能成功抓取至少 50 条评论
+  - AC2：`prism crawl weibo --keyword "Prism Coffee"` 能成功抓取至少 30 条微博
   - AC3：重复执行同一爬虫命令时，已抓取的数据不会重复入库
   - AC4：爬虫数据自动进入 AI 管线处理，无需用户额外操作
   - AC5：请求频率不超过 1 次/秒，尊重目标网站的 robots.txt
@@ -764,7 +764,7 @@ Phase 2     Phase 2.5   数据底座    语义搜索    前端+集成    假设�
 - **R5-A 投票**：7:0 支持 LLM 自动映射方案（其中 2 票有条件支持）
 - **核心分歧**：陈思琪主张 LLM 自动映射可行 vs 周安要求人工安全网
 - **决策**：用户上传 CSV/Excel 采用 LLM 自动映射 + 首次确认预览 + 映射模板缓存复用。爬虫数据采用硬编码解析器。低置信度映射（< 0.8）高亮提示，< 0.7 暂停等待确认
-- **附加条件**：SchemaMapping 持久化（赵一凡）、为阿维塔/Peets 预置模板（林晓薇）
+- **附加条件**：SchemaMapping 持久化（赵一凡）、为Prism/Prism 预置模板（林晓薇）
 
 ### 议题 i：Phase 1 是否包含爬虫？（R5-A 决议，新增）
 

@@ -2124,8 +2124,8 @@ gantt
 
 **M8 爬虫检查清单**：
 
-- [ ] **T16**：`prism crawl dongchedi --keyword "阿维塔"` 成功抓取 >= 50 条评论
-- [ ] **T17**：`prism crawl weibo --keyword "Peets Coffee"` 成功抓取 >= 30 条微博
+- [ ] **T16**：`prism crawl dongchedi --keyword "Prism"` 成功抓取 >= 50 条评论
+- [ ] **T17**：`prism crawl weibo --keyword "Prism Coffee"` 成功抓取 >= 30 条微博
 - [ ] **T18**：重复执行不重复入库；爬虫请求频率 <= 1 次/秒；指数退避在反爬触发时生效
 - [ ] **全局**：爬虫数据在 Web UI 中与手动上传数据无差异展示
 

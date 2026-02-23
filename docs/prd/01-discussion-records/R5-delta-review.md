@@ -1,6 +1,6 @@
 # R5 Delta 评审合并记录
 
-> PRD v1.0 定稿后，用户（系统最终用户代表，行业背景：阿维塔汽车 + Peets Coffee）提出 6 项修正意见。本文档汇总 3 个并行 Agent 的 Delta 评审结果，聚焦最终决策与全局影响。辩论细节请参阅各 Agent 文档。
+> PRD v1.0 定稿后，用户（系统最终用户代表，行业背景：Prism汽车 + Prism Coffee）提出 6 项修正意见。本文档汇总 3 个并行 Agent 的 Delta 评审结果，聚焦最终决策与全局影响。辩论细节请参阅各 Agent 文档。
 
 ---
 
@@ -8,7 +8,7 @@
 
 ### 1.1 评审触发原因
 
-PRD v1.0 经 R0-R4 五轮结构化讨论定稿后，来自阿维塔汽车和 Peets Coffee 的系统最终用户代表提出 6 项修正意见：
+PRD v1.0 经 R0-R4 五轮结构化讨论定稿后，来自Prism汽车和 Prism Coffee 的系统最终用户代表提出 6 项修正意见：
 
 | # | 修正内容 | 核心诉求 |
 |---|---------|---------|
@@ -76,7 +76,7 @@ PRD v1.0 经 R0-R4 五轮结构化讨论定稿后，来自阿维塔汽车和 Pee
 - **附加条件**：
   - SchemaMapping 数据模型必须持久化（赵一凡）
   - 低置信度映射（< 0.8）高亮提示用户（周安）
-  - 为已知用户（阿维塔、Peets）预置数据格式模板（林晓薇）
+  - 为已知用户（Prism、Prism）预置数据格式模板（林晓薇）
 - **工时影响**：+5-7 人天（LLM 映射 Prompt + SchemaMapping CRUD + 前端映射预览 + 测试）
 - **数据模型新增**：SchemaMapping（id, tenant_id, name, source_format, column_mappings, created_by, confidence, sample_data, usage_count, created_at, updated_at）
 
@@ -92,7 +92,7 @@ PRD v1.0 经 R0-R4 五轮结构化讨论定稿后，来自阿维塔汽车和 Pee
 
 **决策**：Phase 1 实现懂车帝 + 微博两个爬虫，作为独立 Python 脚本，通过 CLI 触发。
 
-- **投票依据**：阿维塔和 Peets 是真实 Design Partner，自动化数据采集是产品核心价值循环的基础；没有爬虫用户只能手工搬运数据，采纳率将大幅下降（议题 A2, 7:0）
+- **投票依据**：Prism和 Prism 是真实 Design Partner，自动化数据采集是产品核心价值循环的基础；没有爬虫用户只能手工搬运数据，采纳率将大幅下降（议题 A2, 7:0）
 - **附加条件**：
   - 爬虫必须作为独立模块，不与 Agent/Skill 引擎深度耦合（赵一凡）
   - 合规约束：合理请求频率（< 1 req/s）、尊重 robots.txt、数据使用范围限定（周安）
