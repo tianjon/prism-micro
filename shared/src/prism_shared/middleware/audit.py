@@ -16,10 +16,21 @@ class AuditMiddleware(BaseHTTPMiddleware):
     Phase 1 输出到结构化日志；Phase 2+ 可扩展到持久化存储。
     """
 
-    SKIP_PATHS = {"/health", "/docs", "/openapi.json", "/redoc"}
+    DEFAULT_SKIP_PATHS = {"/health", "/openapi.json"}
+    DEFAULT_SKIP_PREFIXES = ("/docs", "/redoc")
+
+    def __init__(
+        self,
+        app,
+        skip_paths: set[str] | None = None,
+        skip_prefixes: tuple[str, ...] | None = None,
+    ):
+        super().__init__(app)
+        self._skip_paths = self.DEFAULT_SKIP_PATHS | (skip_paths or set())
+        self._skip_prefixes = self.DEFAULT_SKIP_PREFIXES + (skip_prefixes or ())
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
-        if request.url.path in self.SKIP_PATHS:
+        if self._is_skip_path(request.url.path):
             return await call_next(request)
 
         start_time = time.monotonic()
@@ -32,7 +43,7 @@ class AuditMiddleware(BaseHTTPMiddleware):
         logger.info(
             "api_audit",
             request_id=str(request_id),
-            principal_type=principal.type if principal else "anonymous",
+            principal_type=(principal.type.value if principal else "anonymous"),
             principal_id=principal.id if principal else None,
             method=request.method,
             path=request.url.path,
@@ -42,3 +53,8 @@ class AuditMiddleware(BaseHTTPMiddleware):
         )
 
         return response
+
+    def _is_skip_path(self, path: str) -> bool:
+        if path in self._skip_paths:
+            return True
+        return any(path.startswith(prefix) for prefix in self._skip_prefixes)

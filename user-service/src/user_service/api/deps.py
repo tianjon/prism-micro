@@ -2,44 +2,33 @@
 
 import uuid
 from collections.abc import AsyncGenerator
-from functools import lru_cache
 
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from fastapi import Depends, HTTPException, Request, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from prism_shared.auth.deps import create_get_current_active_user, create_get_current_user
-from prism_shared.db.session import create_engine, create_session_factory
+from prism_shared.auth.deps import create_get_current_active_user
+from prism_shared.auth.jwt import decode_token
 from user_service.core.config import UserServiceSettings
-from user_service.core.service import get_user_by_id
+from user_service.models.user import User
+
+_bearer_scheme = HTTPBearer(auto_error=False)
 
 
-@lru_cache
-def get_settings() -> UserServiceSettings:
-    """获取服务配置（单例）。"""
-    return UserServiceSettings()
+def get_settings(request: Request) -> UserServiceSettings:
+    """获取 UserServiceSettings。
+
+    统一开发服务器中使用 app.state.user_settings；
+    独立部署时使用 app.state.settings。
+    """
+    return getattr(request.app.state, "user_settings", None) or request.app.state.settings
 
 
-def _build_session_factory() -> async_sessionmaker[AsyncSession]:
-    """构建 session 工厂。"""
-    settings = get_settings()
-    engine = create_engine(settings.database_url)
-    return create_session_factory(engine)
-
-
-# 全局 session 工厂（延迟初始化）
-_session_factory: async_sessionmaker[AsyncSession] | None = None
-
-
-def _get_session_factory() -> async_sessionmaker[AsyncSession]:
-    global _session_factory
-    if _session_factory is None:
-        _session_factory = _build_session_factory()
-    return _session_factory
-
-
-async def get_session() -> AsyncGenerator[AsyncSession, None]:
+async def get_session(request: Request) -> AsyncGenerator[AsyncSession, None]:
     """FastAPI 依赖：获取数据库 session。"""
-    factory = _get_session_factory()
-    async with factory() as session:
+    session_factory = request.app.state.session_factory
+    async with session_factory() as session:
         try:
             yield session
             await session.commit()
@@ -48,17 +37,60 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
             raise
 
 
-async def _user_lookup(user_id: str):
-    """用户查找回调，供认证依赖使用。"""
-    factory = _get_session_factory()
-    async with factory() as session:
-        return await get_user_by_id(session, uuid.UUID(user_id))
+async def get_current_user(
+    request: Request,
+    db: AsyncSession = Depends(get_session),
+    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer_scheme),
+) -> User:
+    """鉴权依赖：获取当前登录用户。"""
+    if credentials is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="缺少认证信息",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    settings = get_settings(request)
+    payload = decode_token(credentials.credentials, settings.jwt_secret)
+    if payload is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="无效或过期的 token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    if payload.get("type") != "access":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="token 类型无效，需要 access token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    user_id = payload.get("sub")
+    if user_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="token 中缺少用户标识",
+        )
+
+    try:
+        uid = uuid.UUID(user_id)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="无效的用户标识",
+        ) from exc
+
+    result = await db.execute(select(User).where(User.id == uid))
+    user = result.scalar_one_or_none()
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="用户不存在",
+        )
+
+    request.state.token_payload = payload
+    return user
 
 
-# 认证依赖
-_settings = get_settings()
-get_current_user = create_get_current_user(
-    jwt_secret=_settings.jwt_secret,
-    user_lookup=_user_lookup,
-)
 get_current_active_user = create_get_current_active_user(get_current_user)

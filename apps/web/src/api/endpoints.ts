@@ -19,6 +19,12 @@ export const ENDPOINTS = {
   SLOTS: "/api/llm/slots",
   SLOT: (type: string) => `/api/llm/slots/${type}`,
   SLOT_INVOKE: (type: string) => `/api/llm/slots/${type}/invoke`,
+  ADMIN_SLOTS: "/api/llm/admin/slots",
+  ADMIN_SLOT: (type: string) => `/api/llm/admin/slots/${type}`,
+  ADMIN_SLOT_TEST: (type: string) => `/api/llm/admin/slots/${type}/test`,
+  CHAT_SLOT: "/api/llm/chat",
+  EMBEDDING_SLOT: "/api/llm/embedding",
+  RERANK_SLOT: "/api/llm/rerank/slot",
 
   // 推理代理网关
   COMPLETIONS: "/api/llm/completions",

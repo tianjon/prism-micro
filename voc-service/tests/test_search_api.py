@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from httpx import AsyncClient
 
-from conftest import TEST_TAG_ID, TEST_UNIT_ID
+from .conftest import TEST_TAG_ID, TEST_UNIT_ID
 
 pytestmark = pytest.mark.asyncio
 

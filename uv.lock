@@ -26,11 +26,17 @@ name = "agent-service"
 version = "0.1.0"
 source = { editable = "agent-service" }
 dependencies = [
+    { name = "fastapi" },
+    { name = "httpx" },
     { name = "prism-shared" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "prism-shared", editable = "shared" }]
+requires-dist = [
+    { name = "fastapi", specifier = ">=0.115" },
+    { name = "httpx", specifier = ">=0.27" },
+    { name = "prism-shared", editable = "shared" },
+]
 
 [[package]]
 name = "aiohappyeyeballs"

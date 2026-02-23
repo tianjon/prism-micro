@@ -14,7 +14,6 @@ from voc_service.pipeline.guards import (
 )
 from voc_service.prompts.guard_l2 import build_guard_l2_messages
 
-
 # --- L1 格式校验 ---
 
 
@@ -94,6 +93,7 @@ class TestL1Validation:
 # --- L2 语义一致性校验 ---
 
 
+@pytest.mark.asyncio
 class TestL2Validation:
     """validate_l2 语义一致性校验。"""
 

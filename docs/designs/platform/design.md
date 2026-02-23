@@ -7,6 +7,15 @@
 
 ---
 
+## 0. 对齐说明（2026-02-20）
+
+- PRD 对齐文档以 `docs/prd/02-prd-phase1.md` 为单一事实源。
+- 4 槽位模型为当前唯一路由语义，不再把“别名系统”作为当前阶段主路径。
+- 鉴权统一为 Principal（JWT + API Key），审计统一通过 `AuditMiddleware` 全链路记录。
+- API 契约采用“新路由 + 兼容窗口”策略，兼容窗口定义见 `docs/prd/04-contract-alignment-migration.md`。
+
+---
+
 ## 1. 服务概述
 
 ### 1.1 职责定义

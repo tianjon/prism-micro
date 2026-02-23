@@ -82,7 +82,7 @@ async def vector_search(
         return {"query": query, "total": 0, "results": []}
 
     # 3. 可选 rerank
-    rerank_scores: dict[int, float] = {}
+    rerank_scores: list[float] = []
     if rerank and len(rows) > 1:
         documents = [row["text"] for row in rows]
         try:
@@ -91,13 +91,19 @@ async def vector_search(
                 documents=documents,
                 top_n=top_k,
             )
-            # 建立 index → score 映射
+            # 按 rerank 返回顺序重排，并保持分数与结果位置对齐
+            reranked_rows = []
+            reranked_scores = []
             for item in rerank_results:
-                rerank_scores[item["index"]] = item["relevance_score"]
+                index = item.get("index")
+                if not isinstance(index, int) or index < 0 or index >= len(rows):
+                    continue
+                reranked_rows.append(rows[index])
+                reranked_scores.append(float(item.get("relevance_score", 0.0)))
 
-            # 按 rerank 结果重排
-            reranked_indices = [item["index"] for item in rerank_results]
-            rows = [rows[i] for i in reranked_indices if i < len(rows)]
+            if reranked_rows:
+                rows = reranked_rows
+                rerank_scores = reranked_scores
         except Exception:
             logger.warning("Rerank 调用失败，回退到向量搜索结果", exc_info=True)
 
@@ -123,7 +129,7 @@ async def vector_search(
                 "confidence": row["confidence"],
                 "confidence_tier": confidence_tier(row["confidence"], settings),
                 "similarity_score": round(similarity, 6),
-                "rerank_score": (round(rerank_scores[idx], 6) if idx in rerank_scores else None),
+                "rerank_score": (round(rerank_scores[idx], 6) if idx < len(rerank_scores) else None),
                 "tags": tags_by_unit.get(uid, []),
                 "voice": {
                     "id": row["voice_id"],

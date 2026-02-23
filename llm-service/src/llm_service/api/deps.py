@@ -8,6 +8,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from llm_service.core.config import LLMServiceSettings
+from prism_shared.auth import Principal, PrincipalType, get_principal
 
 
 def get_settings(request: Request) -> LLMServiceSettings:
@@ -47,52 +48,26 @@ class _UserRecord:
         self.is_active = row.is_active
 
 
-async def get_current_user(request: Request) -> _UserRecord:
-    """鉴权依赖：获取当前登录用户。"""
-    from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-
-    _bearer = HTTPBearer(auto_error=False)
-    credentials: HTTPAuthorizationCredentials | None = await _bearer(request)
-
-    if credentials is None:
+async def get_current_user(
+    principal: Principal = Depends(get_principal),
+    db: AsyncSession = Depends(get_db),
+) -> _UserRecord:
+    """鉴权依赖：获取当前用户（Human 本人或 Agent 对应 owner）。"""
+    if principal.type == PrincipalType.HUMAN:
+        user_id = principal.id
+    elif principal.type == PrincipalType.AGENT and principal.owner_id:
+        user_id = principal.owner_id
+    else:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="缺少认证信息",
-            headers={"WWW-Authenticate": "Bearer"},
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Agent 缺少 owner 绑定信息",
         )
 
-    from prism_shared.auth.jwt import decode_token
-
-    settings: LLMServiceSettings = request.app.state.settings
-    payload = decode_token(credentials.credentials, settings.jwt_secret)
-    if payload is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="无效或过期的 token",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    if payload.get("type") != "access":
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="token 类型无效，需要 access token",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    user_id = payload.get("sub")
-    if user_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="token 中缺少用户标识",
-        )
-
-    session_factory = request.app.state.session_factory
-    async with session_factory() as session:
-        result = await session.execute(
-            text("SELECT id, email, role, is_active FROM auth.users WHERE id = :uid"),
-            {"uid": user_id},
-        )
-        row = result.first()
+    result = await db.execute(
+        text("SELECT id, email, role, is_active FROM auth.users WHERE id = :uid"),
+        {"uid": user_id},
+    )
+    row = result.first()
 
     if row is None:
         raise HTTPException(
@@ -106,8 +81,6 @@ async def get_current_user(request: Request) -> _UserRecord:
             status_code=status.HTTP_403_FORBIDDEN,
             detail="用户已被禁用",
         )
-
-    request.state.token_payload = payload
     return user
 
 

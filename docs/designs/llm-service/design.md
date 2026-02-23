@@ -7,6 +7,16 @@
 
 ---
 
+## 对齐说明（2026-02-20）
+
+- 当前代码采用“旧路由保留 + 新契约兼容路由”并行策略：
+  - 旧路由：`/api/llm/slots`、`/api/llm/completions`、`/api/llm/embeddings`、`/api/llm/rerank`
+  - 新契约路由：`/api/llm/admin/slots/*`、`/api/llm/chat`、`/api/llm/embedding`、`/api/llm/rerank/slot`
+- 运行时以 LiteLLM 为主路径，HTTP 直连保留为短期 fallback（可开关）。
+- 兼容窗口与下线节奏见 `docs/prd/04-contract-alignment-migration.md`。
+
+---
+
 ## 1. 服务概述
 
 ### 1.1 职责定义

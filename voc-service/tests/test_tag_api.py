@@ -7,7 +7,7 @@ from uuid import UUID
 import pytest
 from httpx import AsyncClient
 
-from conftest import NOW, TEST_TAG_ID, TEST_UNIT_ID, MockRow
+from .conftest import NOW, TEST_TAG_ID, TEST_UNIT_ID, MockRow
 
 pytestmark = pytest.mark.asyncio
 

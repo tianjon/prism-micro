@@ -2,6 +2,7 @@
 
 from prism_shared.auth.api_key import generate_api_key, get_key_prefix, hash_api_key
 from prism_shared.auth.api_key import verify_api_key as verify_api_key_hash
+from prism_shared.auth.api_key_verifier import create_db_api_key_verifier
 from prism_shared.auth.deps import create_get_current_active_user, create_get_current_user
 from prism_shared.auth.jwt import create_access_token, create_refresh_token, decode_token
 from prism_shared.auth.password import hash_password, verify_password
@@ -12,6 +13,7 @@ __all__ = [
     "PrincipalMiddleware",
     "PrincipalType",
     "create_access_token",
+    "create_db_api_key_verifier",
     "create_get_current_active_user",
     "create_get_current_user",
     "create_refresh_token",

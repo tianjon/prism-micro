@@ -1,7 +1,11 @@
 /**
  * API 类型定义。
- * Phase 1 手动定义，后续使用 openapi-typescript 自动生成。
+ * 兼容层：当前手写类型逐步迁移到 openapi-typescript 生成类型。
  */
+
+import type { paths as GeneratedPaths } from "./generated";
+
+export type OpenAPIPaths = GeneratedPaths;
 
 // ========== 通用响应 ==========
 

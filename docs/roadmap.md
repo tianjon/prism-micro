@@ -4,6 +4,14 @@
 
 ---
 
+## 对齐说明（2026-02-20）
+
+- 当前阶段模型路由以 **4 槽位**（`fast/reasoning/embedding/rerank`）为唯一语义，替代别名系统主路径。
+- LLM API 采用“旧路由保留 + 新契约兼容路由”并行策略，详见 `docs/prd/04-contract-alignment-migration.md`。
+- Agent 路线在本轮落地最小闭环（`/api/agent/skills`、`/api/agent/execute`、`/api/agent/executions/{id}`）。
+
+---
+
 ## Phase 1：基础设施 + 模型配置（当前）
 
 **目标**：搭建微服务骨架，完成模型资源配置和连通性验证。
@@ -12,8 +20,8 @@
 
 - **shared**：DB session、JWT 工具、认证中间件、通用 schemas
 - **user-service**：用户注册 / 登录 / JWT 签发 / API Key 管理
-- **llm-service**：Provider 注册、模型定义、别名配置、连通性测试
-- **Web UI**：登录页 + 模型配置管理页面（Provider / Model / Alias CRUD）
+- **llm-service**：Provider 注册、4 槽位配置、连通性测试
+- **Web UI**：登录页 + 模型配置管理页面（Provider / Slot 配置）
 - **基础设施**：Docker Compose（PostgreSQL + pgvector + Redis）、uv workspace
 
 **验收标准**：见 [phase1-deliverables.md](./phase1-deliverables.md)
@@ -26,13 +34,13 @@
 
 **交付内容**：
 
-- **Chat API**（`/api/llm/chat`）：支持流式 / 非流式，别名解析，自动故障转移
+- **Chat API**（`/api/llm/chat`）：支持非流式 slot-first 调用，自动故障转移
 - **Embedding API**（`/api/llm/embedding`）：文本向量化
 - **Rerank API**（`/api/llm/rerank`）：结果重排序
 - **底层调用层**：引入 [LiteLLM](https://github.com/BerriAI/litellm) 替代自建 provider 适配器
   - LiteLLM 已覆盖 100+ provider 的统一接口，避免重复造轮子
   - 自建的 `providers/` 层退化为 LiteLLM 的配置映射
-- **故障转移 / 降级**：别名绑定的降级链（primary → fallback）自动切换
+- **故障转移 / 降级**：槽位绑定的降级链（primary → fallback）自动切换
 - **CLI 基础版**：`prism chat`、`prism embed`、`prism model list/test`
 
 **关键决策**：

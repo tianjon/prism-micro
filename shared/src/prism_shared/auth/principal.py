@@ -40,15 +40,25 @@ class PrincipalMiddleware(BaseHTTPMiddleware):
     跳过 health check 和 docs 端点。
     """
 
-    SKIP_PATHS = {"/health", "/docs", "/openapi.json", "/redoc"}
+    DEFAULT_SKIP_PATHS = {"/health", "/openapi.json"}
+    DEFAULT_SKIP_PREFIXES = ("/docs", "/redoc")
 
-    def __init__(self, app, api_key_verifier: ApiKeyVerifier | None = None, jwt_secret: str = ""):
+    def __init__(
+        self,
+        app,
+        api_key_verifier: ApiKeyVerifier | None = None,
+        jwt_secret: str = "",
+        skip_paths: set[str] | None = None,
+        skip_prefixes: tuple[str, ...] | None = None,
+    ):
         super().__init__(app)
         self._api_key_verifier = api_key_verifier
         self._jwt_secret = jwt_secret
+        self._skip_paths = self.DEFAULT_SKIP_PATHS | (skip_paths or set())
+        self._skip_prefixes = self.DEFAULT_SKIP_PREFIXES + (skip_prefixes or ())
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
-        if request.url.path in self.SKIP_PATHS:
+        if self._is_skip_path(request.url.path):
             return await call_next(request)
 
         # 尝试 Bearer Token
@@ -84,6 +94,11 @@ class PrincipalMiddleware(BaseHTTPMiddleware):
             return _unauthorized_response("缺少认证信息")
 
         return await call_next(request)
+
+    def _is_skip_path(self, path: str) -> bool:
+        if path in self._skip_paths:
+            return True
+        return any(path.startswith(prefix) for prefix in self._skip_prefixes)
 
 
 def get_principal(request: Request) -> Principal:

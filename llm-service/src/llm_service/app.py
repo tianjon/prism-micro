@@ -1,14 +1,17 @@
 """FastAPI 应用工厂。"""
 
+import os
+
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
 from llm_service.api.router import api_router
 from llm_service.core.config import LLMServiceSettings
+from prism_shared.auth import PrincipalMiddleware, create_db_api_key_verifier
 from prism_shared.db import PoolConfig, create_engine, create_session_factory
 from prism_shared.exception_handlers import register_exception_handlers
 from prism_shared.logging import configure_logging
-from prism_shared.middleware import RequestIdMiddleware
+from prism_shared.middleware import AuditMiddleware, RequestIdMiddleware
 from prism_shared.schemas import ApiResponse
 
 
@@ -19,6 +22,11 @@ def create_app(settings: LLMServiceSettings | None = None) -> FastAPI:
     - 初始化数据库连接
     """
     settings = settings or LLMServiceSettings()
+    os.environ.setdefault("PRISM_LLM_RUNTIME_MODE", settings.llm_runtime_mode)
+    os.environ.setdefault(
+        "PRISM_LLM_RUNTIME_HTTP_FALLBACK",
+        "true" if settings.llm_runtime_http_fallback else "false",
+    )
 
     configure_logging(log_level=settings.log_level, json_output=not settings.debug)
 
@@ -39,8 +47,18 @@ def create_app(settings: LLMServiceSettings | None = None) -> FastAPI:
     engine = create_engine(settings.database_url, pool_config)
     app.state.engine = engine
     app.state.session_factory = create_session_factory(engine)
+    api_key_verifier = create_db_api_key_verifier(app.state.session_factory)
+
+    auth_skip_paths = {"/api/llm/providers/presets"}
 
     # 中间件（顺序：最外层最后注册）
+    app.add_middleware(AuditMiddleware, skip_paths=auth_skip_paths)
+    app.add_middleware(
+        PrincipalMiddleware,
+        jwt_secret=settings.jwt_secret,
+        api_key_verifier=api_key_verifier,
+        skip_paths=auth_skip_paths,
+    )
     app.add_middleware(RequestIdMiddleware)
 
     # 异常处理器

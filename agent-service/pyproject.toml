@@ -5,6 +5,8 @@ description = "Prism Agent 运行时：Principal 抽象、SkillRegistry、AgentL
 requires-python = ">=3.12"
 dependencies = [
     "prism-shared",
+    "fastapi>=0.115",
+    "httpx>=0.27",
 ]
 
 [build-system]

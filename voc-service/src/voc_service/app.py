@@ -5,10 +5,11 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
+from prism_shared.auth import PrincipalMiddleware, create_db_api_key_verifier
 from prism_shared.db import PoolConfig, create_engine, create_session_factory
 from prism_shared.exception_handlers import register_exception_handlers
 from prism_shared.logging import configure_logging
-from prism_shared.middleware import RequestIdMiddleware
+from prism_shared.middleware import AuditMiddleware, RequestIdMiddleware
 from prism_shared.schemas import ApiResponse
 from voc_service.api.router import api_router
 from voc_service.core.config import VocServiceSettings
@@ -56,8 +57,15 @@ def create_app(settings: VocServiceSettings | None = None) -> FastAPI:
 
     app.state.engine = engine
     app.state.session_factory = create_session_factory(engine)
+    api_key_verifier = create_db_api_key_verifier(app.state.session_factory)
 
-    # 中间件
+    # 中间件（注册顺序与执行顺序相反，RequestIdMiddleware 最先执行）
+    app.add_middleware(AuditMiddleware)
+    app.add_middleware(
+        PrincipalMiddleware,
+        jwt_secret=settings.jwt_secret,
+        api_key_verifier=api_key_verifier,
+    )
     app.add_middleware(RequestIdMiddleware)
 
     # 异常处理器

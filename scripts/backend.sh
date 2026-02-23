@@ -146,6 +146,7 @@ do_start() {
         --reload-dir user-service/src \
         --reload-dir llm-service/src \
         --reload-dir voc-service/src \
+        --reload-dir agent-service/src \
         > /dev/null 2>&1 &
 
     local pid=$!

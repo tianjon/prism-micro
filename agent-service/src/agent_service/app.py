@@ -1,25 +1,22 @@
-"""FastAPI 应用工厂。"""
+"""agent-service FastAPI 应用工厂。"""
 
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.responses import JSONResponse
 
+from agent_service.api.router import router
+from agent_service.core.config import AgentServiceSettings
 from prism_shared.auth import PrincipalMiddleware, create_db_api_key_verifier
 from prism_shared.db import create_engine, create_session_factory
 from prism_shared.exception_handlers import register_exception_handlers
 from prism_shared.logging import configure_logging
-from prism_shared.middleware import AuditMiddleware
-from prism_shared.middleware.request_id import RequestIdMiddleware
-from prism_shared.schemas.response import ApiResponse
-from user_service.api.router import router
-from user_service.core.config import UserServiceSettings
+from prism_shared.middleware import AuditMiddleware, RequestIdMiddleware
+from prism_shared.schemas import ApiResponse
 
 
-def create_app(settings: UserServiceSettings | None = None) -> FastAPI:
-    """创建并配置 FastAPI 应用实例。"""
-    if settings is None:
-        settings = UserServiceSettings()
-
+def create_app(settings: AgentServiceSettings | None = None) -> FastAPI:
+    settings = settings or AgentServiceSettings()
     configure_logging(log_level=settings.log_level, json_output=not settings.debug)
 
     engine = create_engine(settings.database_url)
@@ -30,7 +27,7 @@ def create_app(settings: UserServiceSettings | None = None) -> FastAPI:
         await engine.dispose()
 
     app = FastAPI(
-        title="Prism User Service",
+        title="Prism Agent Service",
         version="0.1.0",
         docs_url="/docs" if settings.debug else None,
         redoc_url="/redoc" if settings.debug else None,
@@ -38,41 +35,26 @@ def create_app(settings: UserServiceSettings | None = None) -> FastAPI:
     )
 
     app.state.settings = settings
+    app.state.agent_settings = settings
     app.state.engine = engine
     app.state.session_factory = create_session_factory(engine)
     api_key_verifier = create_db_api_key_verifier(app.state.session_factory)
 
-    auth_skip_paths = {
-        "/api/auth/login",
-        "/api/auth/register",
-        "/api/auth/refresh",
-    }
-
-    # 中间件（注册顺序与执行顺序相反，RequestIdMiddleware 最先执行）
-    app.add_middleware(AuditMiddleware, skip_paths=auth_skip_paths)
+    app.add_middleware(AuditMiddleware)
     app.add_middleware(
         PrincipalMiddleware,
         jwt_secret=settings.jwt_secret,
         api_key_verifier=api_key_verifier,
-        skip_paths=auth_skip_paths,
     )
     app.add_middleware(RequestIdMiddleware)
 
-    # 异常处理器
     register_exception_handlers(app)
-
-    # 路由
     app.include_router(router)
 
-    # 健康检查
     @app.get("/health", tags=["health"])
-    async def health_check() -> ApiResponse[dict]:
-        return ApiResponse(
-            data={
-                "status": "healthy",
-                "service": "user-service",
-                "version": "0.1.0",
-            }
+    async def health_check() -> JSONResponse:
+        return JSONResponse(
+            content=ApiResponse(data={"status": "ok", "service": "agent-service"}).model_dump(mode="json")
         )
 
     return app
